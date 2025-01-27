@@ -1,0 +1,23 @@
+columns	description
+genotype	plant genotype
+site	location of research plantation
+date	date of measurement
+time	time of measurement
+year	year of measurement
+block	block number
+row	row position within a block
+col	col position within a block
+feature	original feature name
+value	raw value
+observations	comments regarding the measurement
+source_file	source file from where the data was obtained
+tag	tree tag
+curated_name	harmonized phenotype name from feature column
+short_name	short name for curated name
+units	original units (some of them where inferred)
+conversion_factor	conversion factor to harmonize units
+corrected_units	harmonized units
+value_curated	curated value after unit harmonization
+tree_id	"tree id created by combining site, block, row, position"
+coppice_year	year of coppice
+coppice_number	number of times a tree has been coppiced 

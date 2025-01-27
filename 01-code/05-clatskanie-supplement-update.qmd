@@ -1,0 +1,1912 @@
+---
+title: "Supplemental Information for Clatskanie Manuscript"
+author: "Brandon Sloan"
+date: "`r Sys.time()`"
+date-format: "DD MMMM, YYYY"
+theme: "journal"
+format: 
+ html:
+  code-link: true
+  code-overflow: wrap
+  code-fold: true
+  number-sections: true
+  embed-resources: true
+  self-contained-math: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+execute: 
+  warning: false
+  message: false
+  cache: true
+  bibliography: ../references.bib
+bibliography: references.bib
+---
+
+```{r}
+#| include: false
+#| label: preamble
+
+# The following clears the environment, adds libraries, and closes any stray parallel workers
+gc(reset = TRUE)
+rm(list = ls())
+source("./01-code/01-notebooks/01-data-analysis/fit-helper-fxns.R")
+unregister_dopar()
+load_libs("ggcorrplot","corrplot", "ggpubr", "ggstatsplot", "ggfortify", "lemon", "fields","ggpmisc", "easystats", "multilevelmod", "broom.mixed")
+
+# Default figure parameters
+fig_path <- "04-outputs/02-figures/01-agu/"
+fs <- 11
+```
+
+# Clatskanie Soil and Plant Trait Data
+
+This notebook provides the analysis and figures used in the manuscript: *Which plant traits drive soil carbon sequestration? Empirical evidence from a long‑term Populus genetic diversity trial*. We explore fractionated soil core data taken at 69 trees covering 24 genotypes at the Clatskanie Common Garden site. Below, I will briefly describe the data followed by analyses corresponding to the differing sections of the manuscript.
+
+I have harmonized multiple datasets taken from the Clatskanie common garden site since 2009. Primarily, this analysis relies on soil and root chemistry data taken as part of Melanie Mayes' SEED project in summer of 2022, while the root exudate and architecture data were taken as part of John Field's LDRD project in fall of 2022. The aboveground biomass data was provided by Mirko Pavicic-Venegas from the overall CBI database. Full details on these harmonized data sets are given in *01-harmonize-clatskanie-data.html*.
+
+```{r}
+#| include: true
+#| label: load-data
+
+d_path <- "02-data/"
+df_fit <-
+  read_csv(file.path(d_path, "02-processed/clatskanie-c-fit-data.csv")) |>
+  mutate(block = as.character(block),
+         across(where(is.character), \(x) fct(x)),
+         SiCl = Silt + Clay, 
+         MAOMC_mb = TotC - POMC,
+        MAOMC_st_mb = TotC_st - POMC_st)
+
+# Clatskanie latitude and longitude data from Stan Martins
+df_ll <-
+  read_csv(file.path(d_path, "01-raw/03-seed/clatskanie-lat-lon.csv")) |>
+  mutate(
+    genotype = as.factor(CBI_genotype),
+    block = as.factor(CBI_block),
+    tree = fct_cross(genotype, block, sep = "-")
+  ) |>
+  select(tree, latitude, longitude)
+```
+
+```{r}
+#| label: tbl-data
+#| tbl-cap: |
+#|  Clatskanie common garden 2022 soil sampling data.
+#| echo: false
+head(df_fit) |> 
+  gt()
+```
+
+## Soil C Fractionation
+
+The first figure of the manuscript looks at the MAOM versus POM soil C (@fig-site-char), where MAOM soil C dominates the Clatskanie site compared to POM C. There also may be a thresholding behavior around a MAOM value of 60 (@fig-site-char b), but this could simply be noise in the data. Overall, the consequences for MAOM may be more indicative of total C at this site.
+
+```{r}
+#| label: fig-4-pub
+#| fig-cap: "Comparison of MAOM, POM and Total soil carbon in concentration units."
+#| fig-width: 3
+#| fig-height: 2.5
+
+g1 <- df_fit |>
+  pivot_longer(c(MAOMC, POMC, TotC)) |>
+  mutate(name  = fct_recode(
+    name,
+    MAOM = "MAOMC",
+    POM = "POMC",
+    Total = "TotC"
+  )) |>
+  ggplot(aes(y = value,
+             x = name)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(size = 1, shape = 4) +
+  ylab("0-15 cm Soil C \n [mg C/g soil]") +
+  xlab("Soil C Pool") +
+  theme_cowplot(fs)
+
+g1
+```
+
+```{r}
+#| label: soil-c-summary
+
+
+df_fit |> 
+  select(contains(c("MAOMC","POMC","TotC","CN")), pMAOM) |> 
+  summary()
+```
+
+```{r}
+#| label: fig-site-char
+#| fig-cap: "Comparison of MAOM soil C versus POM soil C versus a) total soil C and b) each other in concentration units"
+#| fig-width: 6
+#| fig-height: 3
+
+g1 <- df_fit |>
+  pivot_longer(c(MAOMC, POMC, TotC)) |>
+  mutate(name  = fct_recode(
+    name,
+    MAOM = "MAOMC",
+    POM = "POMC",
+    Total = "TotC"
+  )) |>
+  ggplot(aes(y = value,
+             x = name)) +
+  geom_boxplot() +
+  ylab("0-15 cm Soil C \n [mg C/g soil]") +
+  xlab("Soil C Pool") +
+  theme_cowplot(fs)
+
+
+g2 <- df_fit |>
+  ggplot(aes(y = MAOMC,
+             x = POMC)) +
+  geom_point() +
+  geom_smooth(method = "gam") +
+  #stat_poly_eq(use_label(c("eq", "adj.R2"))) +
+  ylab("0-15 cm MAOM Soil C \n [mg C/g soil]") +
+  xlab("0-15 cm POM Soil C \n [mg C/g soil]") +
+  theme_cowplot(fs)
+
+g3 <- g1 + g2 + plot_annotation(tag_levels = "a", tag_suffix = ')')
+g3
+```
+
+Here and throughout the analysis, I look at soil C results with respect to both concentration (mg C/g soil) and stock (tonnes C/ha). In the manuscript, we focus on concentration units because the stock units may be confounded by two bulk density uncertainties. First, the cores used to measure bulk density are different than the cores for which the concentration was extracted. Second, bulk density decreases with soil C as less dense plant material fills a fixed volume. Therefore, the stock measurements would need to adjust for the change in density if taking soil C from a fixed core. At Clatskanie, this adjustment is difficult given there are no measurements at the start of the experiment.
+
+Nevertheless, stock units are typically useful for carbon sequestration and land management studies as they tend to concern how much space there is for carbon in the soil. @fig-site-char-st shows the same MAOM-POM comparison from @fig-site-char.
+
+```{r}
+#| label: fig-site-char-st
+#| fig-cap: "Comparison of MAOM soil C versus POM soil C versus a) total soil C and b) each other in stock units."
+#| fig-width: 6
+#| fig-height: 3
+
+g1 <- df_fit |>
+  pivot_longer(c(MAOMC_st, POMC_st, TotC_st)) |>
+  mutate(name  = fct_recode(
+    name,
+    MAOM = "MAOMC_st",
+    POM = "POMC_st",
+    Total = "TotC_st"
+  )) |>
+  ggplot(aes(y = value,
+             x = name)) +
+  geom_boxplot() +
+  ylab("0-15 cm Soil C \n [Tonnes C/ha]") +
+  xlab("Soil C Pool") +
+  theme_cowplot(fs)
+
+
+g2 <- df_fit |>
+  ggplot(aes(y = MAOMC_st,
+             x = POMC_st)) +
+  geom_point() +
+  geom_smooth(method = "gam") +
+  #stat_poly_eq(use_label(c("eq", "adj.R2"))) +
+  ylab("0-15 cm MAOM Soil C \n [Tonnes C/ha]") +
+  xlab("0-15 cm POM Soil C \n [Tonnes C/ha]") +
+  theme_cowplot(fs)
+
+g1 + g2 + plot_annotation(tag_levels = "a", tag_suffix = ')')
+```
+
+```{r}
+#| label: fig-site-char-gt-avg
+#| fig-cap: "Genotype average MAOM and POM comparison in concentration units."
+#| fig-width: 6
+#| fig-height: 3
+
+# Genotype average
+df_fit |> group_by(genotype) |> 
+  summarize(across(.cols = c(MAOMC,POMC), .fns = list(mn = mean, sd = sd))) |> 
+  ggplot(aes(y = MAOMC_mn,
+             x = POMC_mn)) +
+  geom_point() +
+  geom_linerange(aes(xmin = POMC_mn - POMC_sd, xmax = POMC_mn + POMC_sd)) +
+  geom_linerange(aes(ymin = MAOMC_mn - MAOMC_sd, ymax = MAOMC_mn + MAOMC_sd)) +
+  geom_smooth(method = "lm") +
+  stat_poly_eq(use_label(c("eq", "adj.R2"))) +
+  ylab("0-15 cm MAOM Soil C \n [mg C/g soil]") +
+  xlab("0-15 cm POM Soil C \n [mg C/g soil]") +
+  theme_cowplot(fs)
+
+```
+
+```{r}
+#| label: fig-asm-c-frac
+#| eval: false
+#| fig-cap: "Broad sense heritability results for the raw data set."
+#| fig-width: 4
+#| fig-height: 5
+#| dependson: calc-H2
+g1 <- df_fit |>
+  pivot_longer(c("MAOMC", "POMC", "TotC", "MAOMC_st", "POMC_st", "TotC_st")) |>
+  mutate(Units = ifelse(grepl("_st", name), "Stock [tonnes C/ha]", "Conc. [mg C/g soil]"),
+         name_plt = ifelse(grepl("_st", name), str_remove(name, "_st"), name)) |> 
+  mutate(name_plt  = fct_recode(
+    name_plt,
+    `MAOM-C` = "MAOMC",
+    `POM-C` = "POMC",
+    `Total C` = "TotC"
+  )) |>
+  ggplot(aes(y = value,
+             x = name_plt,
+             fill = Units)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c(`Stock [tonnes C/ha]` = "gray", `Conc. [mg C/g soil]` = "white")) +
+  #geom_jitter(size = 1, shape = 4) +
+  scale_y_continuous(breaks = c(0,50,100)) + 
+  #ylab("0-15 cm Soil C \n [mg C/g soil] or [tonnes C/ha]") +
+  ylab("0-15 cm Soil C") +
+  xlab(NULL) +
+  theme_cowplot(16) + 
+  theme(legend.position = c(0.1,0.9))
+
+g1
+fig_path_asm <- "./04-outputs/02-figures/04-asm-2024"
+ggsave2(file.path(fig_path_asm, "soc-frac.jpg"),
+        width = 5.5,
+        height = 4)
+```
+
+## Checking For Log-Transformation
+
+We have many variables, and some have very skewed distributions. Now skewed distributions can results simply from sampling and may have not bearing on the actual regression analysis. However, at times it can be helpful to log-transform skewed variables as they have a proportional effect on the response variable. This may make a lot of sense for chemical concentrations as they are typically modeled with first-order kinetics. Below we check the raw and transformed distributions of all variables to determine where log transformation could make sense.
+
+According to @fig-conc-dist, aluminum, iron, manganese, sodium and potassium are the best candidates for the log-transformation given their skewness. For completeness, we will perform the regression analysis with and without the log transformation on all concentrations just to ensure the results do not change.
+
+```{r}
+#| label: fig-conc-dist
+#| fig-cap: "Kernal density estimate of normalized soil and root concentration with raw and log-transformed. The standard normal distribution as a dashed black line."
+#| fig-width: 8
+#| fig-height: 8
+
+# Log transform concentrations
+df_fit_log <- df_fit |>
+  mutate(across(
+    .cols = contains(c("_root", "_soil","_diff")),
+    .fns = \(x) log10(x)
+  ))
+
+# Plot distributions
+list(raw = df_fit, log = df_fit_log) |>
+  bind_rows(.id = "transform") |>
+  pivot_longer(cols = contains(c("_root", "_soil", "_diff"))) |>
+  group_by(name, transform) |>
+  mutate(value_scale = scale(value, scale = TRUE),) |>
+  ungroup() |>
+  ggplot(aes(x = value_scale, colour = transform)) +
+  geom_density() +
+  stat_function(
+    fun = dnorm,
+    n = 101,
+    args = list(mean = 0, sd = 1),
+    color = "black",
+    linetype = "dashed"
+  ) +
+  xlab("Normalized Values") +
+  ylab("Kernal Density") +
+  coord_cartesian(ylim = c(0, 1)) +
+  facet_wrap( ~ name) +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom",
+        legend.justification = "center")
+```
+
+# Heritability Analysis
+
+## Fit Linear Mixed Effects Model
+
+Based on the recommendation of Hari Chetri, we are going to try to quantify the heritability of each phenotype to determine whether there are any biological controls. Heritability is simply the variance explained by genotype in phenotype data ($H^2 = \frac{\sigma_G}{\sigma_P}$). We will use a linear mixed effects models with genotype as a random effect to quantify heritability.
+
+```{r}
+#| label: calc-H2
+
+outcome <-
+  c(
+    "TotC",
+    "TotC_30",
+    "POMC",
+    "MAOMC",
+    #"MAOMC_mb", 
+    "TotC_st",
+    "TotC_st_30",
+    "POMC_st",
+    "MAOMC_st",
+    #"MAOMC_st_mb",
+    "soil_CN",
+    "BD",
+    "CEC",
+    "base_sat",
+    "pH_soil",
+    "agb",
+    #"height",
+    "root_CN",
+    "Lig",
+    sort(c(
+    grep("_soil", colnames(df_fit |> select(-pH_soil)), value = TRUE),
+    grep("_root", colnames(df_fit |> select(-pH_root)), value = TRUE),
+    grep("_diff", colnames(df_fit |> select(-pH_diff)), value = TRUE)))
+  )
+
+out_labels <-
+  c(
+    "Total C Conc.",
+    "Total C Conc. 30cm",
+    "POM C Conc.",
+    "MAOM C Conc.",
+    #"Adj. MAOM C Conc.",  
+    "Total C Stock",
+    "Total C Stock 30cm",
+    "POM C Stock",
+    "MAOM C Stock",
+    #"Adj. MAOM C Stock", 
+    "Soil C/N",
+    "Bulk Density",
+    "CEC",
+    "Base Sat.",
+    "Soil pH",
+    "Growth",
+    #"Height",
+    "Root C/N",
+    "Root Lignin",
+    "Diff Al",
+    "Root Al",
+    "Soil Al",
+    "Root B",
+    "Diff Cu",
+    "Root Cu",
+    "Soil Cu",
+    "Diff Fe",
+    "Root Fe",
+    "Soil Fe",
+    "Diff Mn",
+    "Root Mn",
+    "Soil Mn",
+    "Diff Na",
+    "Root Na",
+    "Soil Na",
+    "Diff Ni",
+    "Root Ni",
+    "Soil Ni",
+    "Diff Ca",
+    "Root Ca",
+    "Soil Ca",
+    "Diff K",
+    "Root K",
+    "Soil K",
+    "Diff Mg",
+    "Root Mg",
+    "Soil Mg",
+    "Diff P",
+    "Root P",
+    "Soil P",
+    "Root S",
+    "Diff Zn",
+    "Root Zn",
+    "Soil Zn"
+  )
+
+out_pools <-
+  c(
+    replicate(13, "Soil"),
+    "Aboveground",
+    #"Aboveground",
+    replicate(2, "Root"),
+    "Root-Soil",
+    "Root",
+    "Soil",
+    "Root",
+    rep(c("Root-Soil","Root", "Soil"), 9),
+    "Root",
+    "Root-Soil",
+    "Root",
+    "Soil"
+  )
+
+
+var_key <- tibble(phenotype = outcome, 
+                  label = out_labels, 
+                  pool = out_pools)
+
+# Helper function for calculating broad sense heritability
+calc_H2 <- function(df, y, fma) {
+  fma <- as.formula(paste0(y, fma))
+  mdl <- lme4::lmer(fma, data = df)
+  mdl_sds <-
+    tidy(mdl) |>
+    filter(group %in% c("genotype","Residual")) |>
+    pluck("estimate")
+  genotype_var <- mdl_sds[1]^2
+  #error_sd <- mdl_sds[2]
+  error_var <- var(resid(mdl))
+  H2 <- genotype_var / (genotype_var + error_var)
+  warn <- mdl@optinfo$conv$lme4$messages
+  # Check normality and variance explained
+  p_nrm <- shapiro.test(resid(mdl))$p.value
+  var_y <- var(df |> pluck(y))
+  mean_y <- mean(df |> pluck(y), na.omit=TRUE)
+  var_exp <- 1 - error_var / var_y
+  var_rem <-  (error_var + genotype_var) / var_y
+  p_htc <- check_heteroscedasticity(mdl) |> as.double()
+  gt_eff <- modelbased::estimate_grouplevel(mdl)
+  
+  return(list(H2 = H2, 
+              warn = warn,
+              p_nrm = p_nrm,
+              var_exp = var_exp,
+              var_rem = var_rem,
+              var_y = var_y,
+              mean_y = mean_y,
+              p_htc = p_htc,
+              gt_eff = gt_eff))
+  
+}
+
+# Formulas and data for mixed effect model
+fma_full <- "~ Silt + Clay + cop_id + block + (1|genotype)"
+fma_min <- "~ (1|genotype)"
+fmas <- list(full = fma_full, min = fma_min)
+dfs <- list(raw = df_fit, log = df_fit_log)
+  
+# y = "Alppm"
+# fma <- as.formula(paste0(y, fma_full))
+# 
+# mdl <- lme4::lmer(fma, data = df_fit)
+# check_model(mdl)
+# test <- rstanarm::stan_glmer(fma, data = df_fit, family = gaussian())
+# check_model(test)
+# test <- modelbased::estimate_grouplevel(mdl)
+# 
+#   mdl_sds <-  tidy(mdl) |>
+#     filter(group %in% c("genotype","Residual")) |>
+#     pluck("estimate")
+
+# Calculate H2
+H2_results <-
+  expand_grid(outcome, fmas, dfs) |>
+  mutate(
+    model = names(fmas),
+    data = names(dfs),
+    run = paste(outcome, model, data, sep = "-"),
+    across(model:run, fct)
+  ) |>
+  mutate(fits = pmap(list(dfs, outcome, fmas),
+                     \(x, y, z) calc_H2(x, y, z))) |>
+  unnest_wider(fits) |>
+  select(outcome, model, data, run, H2:gt_eff) |> 
+  rename(phenotype = outcome)
+```
+
+@fig-h2-check illustrates the sensitivity of $H^2$ to our mixed effects models and spatial data correction. As would be expected, the raw data set tends to have lower $H^2$ compared to the spatially corrected as we have removed variability from the data, making the denominator smaller. Additionally, the full mixed effects model appears to strengthen $H^2$ (solid versus dashed border) in most cases (*POM_st* is a counter-example). This could indicate that controlling for the variance of block, soil texture, and coppicing allows the model to explain the genotype variance better. Or it could mean that the flexibility allowed by other parameters could allow over-fitting. We did not perform cross-validation as accounting for missing factors can be tedious; however, that may be a good future step to take.
+
+```{r}
+#| label: fig-h2-check
+#| fig-cap: "Linear mixed model performance using raw and spatially-adjusted datasets and differing model formulations. We look at the a) heritability, b) variance explained by the model, c) variance remaining to be explained by genotype, and d) the p-value from a normality test of model residuals."
+#| fig-width: 8.5
+#| fig-height: 7
+
+g1 <- H2_results |>
+  filter(grepl("_root",phenotype)) |> 
+  mutate(name = fct_reorder(phenotype, H2)) |>
+  pivot_longer(cols = c(H2,var_exp, var_rem, p_nrm),
+               names_to = "stat") |>
+  mutate(
+    stat = fct_recode(
+      fct(stat, levels = c("H2","var_exp", "var_rem", "p_nrm")),
+      `Heritability, H2` = "H2",
+      `Variance Explained` = "var_exp",
+      `Variance Remaining` = "var_rem",
+      `Norm. p-value` = "p_nrm"
+    )
+  ) |>
+  ggplot(aes(y = name,
+             x = value,
+             fill = data,
+             linetype = model)) +
+  geom_col(position = "dodge", color = "black") +
+  geom_vline(
+    data = tibble(stat = fct(c("Norm. p-value")),
+                  thresh = c(0.05)),
+    aes(xintercept = thresh),
+    colour = "red",
+    linetype = "dashed"
+  ) +
+  coord_cartesian(xlim = c(0, 1), clip = "off") +
+  xlab("Statistic Value") +
+  ylab("phenotype") +
+  facet_wrap(~ stat, nrow = 1) +
+    force_panelsizes(rows = unit(5.75, "in"),
+                   cols = unit(1.7, "in")
+                   ) +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom", legend.justification = "center") 
+
+g1 <- tag_facet2(g1, open = "", vjust = -2, hjust = 1)
+g1
+rm(g1)  
+```
+
+## Selected Heritability Results
+
+@fig-h2-pub and @fig-h2-pub-sa shows the $H^2$ results for the full model fit to the raw data and the minimal model fit to the spatially-correct data using REML criteria. The results show there are not major differences between the two, except for teh most important phenotype, which is MAOM C---the spatial correction nearly doubles the $H^2$ value. I trust the REML results more than the GCV correction, due to the smaller effective degrees of freedom. The lack of difference between the raw and spatially adjusted calls into question its use in this analysis.
+
+```{r}
+#| label: fig-h2-pub
+#| fig-cap: "Broad sense heritability results for the raw data set."
+#| fig-width: 4
+#| fig-height: 5
+#| dependson: calc-H2
+
+H2_results |>
+  filter(data %in% "raw", model %in% "full", !grepl("_diff", phenotype)) |>
+  left_join(var_key, by = "phenotype") |>
+  ggplot(aes(
+    y = fct_reorder(label, H2),
+    x = H2,
+    fill = pool
+  )) +
+  geom_col(position = "dodge", color = "black", linewidth = 0.2) +
+  geom_vline(xintercept = 0.1,
+             color = "red",
+             linetype = "dashed") +
+  coord_cartesian(xlim = c(0, 1)) +
+  xlab(expression(Broad ~ Sense ~ Heritability ~ H ^ 2)) +
+  ylab("Trait/Property") +
+  theme_cowplot(fs) +
+  theme(legend.position = c(0.6, 0.2)) +
+  guides(fill = guide_legend(title = "Compartment"))
+
+fig_path <- "./04-outputs/02-figures/03-manuscript"
+ggsave2(file.path(fig_path, "fig-5.jpg"),
+        width = 5, height = 6)
+test <- H2_results |>
+  filter(data %in% "raw", model %in% "full", !grepl("_diff", phenotype)) 
+```
+
+```{r}
+#| label: fig-h2-asm-c
+#| eval: false
+#| fig-cap: "Broad sense heritability results for the raw data set."
+#| fig-width: 4
+#| fig-height: 5
+#| dependson: calc-H2
+
+H2_results |>
+  filter(
+    data %in% "raw",
+    model %in% "full",
+    !grepl("_diff|30", phenotype),
+    grepl("MAOM|POM|Tot|BD", phenotype)
+  ) |>
+  left_join(var_key, by = "phenotype") |>
+  ggplot(aes(y = fct_reorder(label, H2),
+             x = H2)) +
+  geom_col(
+    fill = "black",
+    position = "dodge",
+    color = "black",
+    linewidth = 0.2
+  ) +
+  geom_vline(xintercept = 0.1,
+             color = "red",
+             linetype = "dashed") +
+  coord_cartesian(xlim = c(0, 1)) +
+  xlab(expression(Broad ~ Sense ~ Heritability ~ H ^ 2)) +
+  ylab("Phenotype") +
+  theme_cowplot(16) +
+  theme(legend.position = c(0.6, 0.2)) +
+  guides(fill = guide_legend(title = "C Pool"))
+
+fig_path_asm <- "./04-outputs/02-figures/04-asm-2024"
+ggsave2(file.path(fig_path_asm, "H2-C-only.jpg"),
+        width = 6,
+        height = 6)
+```
+
+```{r}
+#| label: fig-h2-asm-eff
+#| eval: false
+#| fig-cap: "Broad sense heritability results for the raw data set."
+#| fig-width: 4
+#| fig-height: 5
+#| dependson: calc-H2
+
+H2_results |>
+  filter(
+    data %in% "raw",
+    model %in% "full",
+    !grepl("_diff|30", phenotype),
+    phenotype %in% c("agb",
+    "height",
+    "root_CN",
+    "Lig",
+    "Al_ppm_root",
+    "B_ppm_root",
+    "Na_ppm_root",
+    "pMg_root",
+    "pH_soil")
+  ) |>
+  left_join(var_key, by = "phenotype") |>
+  ggplot(aes(y = fct_reorder(label, H2),
+             x = H2, fill = pool)) +
+  geom_col(
+    #fill = "black",
+    position = "dodge",
+    color = "black",
+    linewidth = 0.2
+  ) +
+  geom_vline(xintercept = 0.1,
+             color = "red",
+             linetype = "dashed") +
+  coord_cartesian(xlim = c(0, 1)) +
+  scale_x_continuous(breaks = c(0,0.5,1)) +
+  xlab(expression(Broad ~ Sense ~ Heritability ~ H ^ 2)) +
+  ylab(NULL) +
+  theme_cowplot(16) +
+  theme(legend.position = "none") +
+  guides(fill = guide_legend(title = "C Pool"))
+
+fig_path_asm <- "./04-outputs/02-figures/04-asm-2024"
+ggsave2(file.path(fig_path_asm, "H2-eff.jpg"),
+        width = 5,
+        height = 6)
+```
+
+```{r}
+#| label: fig-h2-pub-sa
+#| fig-cap: "Broad sense heritability results for the TPS-REML data set."
+#| fig-width: 4
+#| fig-height: 5
+#| dependson: calc-H2
+
+H2_results |>
+  filter(data %in% "log", model %in% "full",!grepl("_diff", phenotype)) |>
+  left_join(var_key, by = "phenotype") |>
+  ggplot(aes(
+    y = fct_reorder(label, H2),
+    x = H2,
+    fill = pool
+  )) +
+  geom_col(position = "dodge", color = "black", linewidth = 0.2) +
+  geom_vline(xintercept = 0.1,
+             color = "red",
+             linetype = "dashed") +
+  coord_cartesian(xlim = c(0, 1)) +
+  xlab(expression(Broad ~ Sense ~ Heritability ~ H ^ 2)) +
+  ylab("Phenotype") +
+  theme_cowplot(fs) +
+  theme(legend.position = c(0.6, 0.2)) +
+  guides(fill = guide_legend(title = "C Pool"))
+```
+
+```{r}
+#| label: fig-s4
+#| fig-cap: "Linear mixed model performance using raw and spatially-adjusted datasets and differing model formulations. We look at the a) heritability, b) variance explained by the model, c) variance remaining to be explained by genotype, and d) the p-value from a normality test of model residuals."
+#| fig-width: 8.5
+#| fig-height: 7
+
+g1 <- H2_results |>
+  filter(!grepl("_diff", phenotype)) |>
+  left_join(var_key, by = "phenotype") |> 
+  mutate(name = fct_reorder(phenotype, H2),
+  label = fct_reorder(label, H2),
+  cv = ifelse(data %in% "raw",sqrt(var_y)/mean_y, 0)) |>
+  pivot_longer(cols = c(H2,var_exp, cv),
+               names_to = "stat") |>
+  mutate(
+    stat = fct_recode(
+      fct(stat, levels = c("H2","var_exp", "cv")),
+      `Heritability, H2` = "H2",
+      `Variance Explained` = "var_exp",
+      `Coefficient of Variation` = "cv"
+    )
+  ) |>
+  ggplot(aes(y = label,
+             x = value,
+             fill = data,
+             linetype = model)) +
+  geom_col(position = "dodge", color = "black") +
+  #coord_cartesian(xlim = c(0, 1), clip = "off") +
+  xlab("Statistic Value") +
+  ylab("phenotype") +
+  facet_wrap(~ stat, nrow = 1) +
+    force_panelsizes(rows = unit(5.75, "in"),
+                   cols = unit(1.5, "in")
+                   ) +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom", legend.justification = "center") 
+
+g1 <- tag_facet2(g1, open = "", vjust = -2, hjust = 1)
+g1
+rm(g1)
+
+fig_path <- "./04-outputs/02-figures/03-manuscript"
+ggsave2(file.path(fig_path, "fig-s4.jpg"),
+        width = 6.5, height = 7)
+```
+
+# Site and Phenotypic Controls on Soil Carbon
+
+## Regularize the Regression with GLMNET
+
+We next want to assess whether the site characteristics and observed phenotypes can explain the difference in soil carbon at Clatskanie. Here, we use the raw and two spatially corrected data sets and test two sets of predictors: 1) all site, soil texture and chemistry, aboveground growtth, and root chemisty predictors (23 predictors labelled *all* in figures), and 2) a subset excluding root metals (14 predictors labelled *no_metal* in figures). We regress these predictors on Total, MAOM, and POM concentrations and stocks.
+
+The large number of correlated predictors could result in model over-fitting and highly variable effects. To combat this, we perform regularized regression and cross-validate the results to get a better estimate of the uncertainty in effects and predictive performance. We perform both ridge and LASSO regression using the R package *glmnet* contained in the *tidymodels* ecosystem. The two regularized regressions are end-members of *elastic-net regression* which penalizes parameter norms causing a shrinkage in parameter values (some to 0 in the case of LASSO) the biases the model fit to the training sample while improving the model's ability to fit to out-of-bag samples [@sohil2022]. The regularized regression requires tuning of the penalty or regularization parameter, which we do via 10-fold cross-validation repeated 5 times. We select the penalty parameter for each regression that minimizes the root mean square error (RMSE).
+
+```{r}
+#| eval: true
+#| label: tune-penalty
+
+# Change to sum contrast coding - difference from grand mean
+options(contrasts = rep("contr.sum", 2))
+
+# Splits for cross-validation
+set.seed(1)
+v_folds <- 10
+v_rep <- 5
+make_df_cv <- \(x) vfold_cv(x,
+                            v = v_folds,
+                            repeats = v_rep)
+
+df_cv <- make_df_cv(df_fit)
+
+# Predictors in all analyses
+pred <-   c("agb",
+            #"height",
+            "root_CN",
+            "Lig",
+            "SiCl",
+            "pH_soil",
+            "cop_id",
+            grep(
+              "_root|_soil|_diff",
+              colnames(df_fit |> select(-pH_soil,-pH_root,-pH_diff)),
+              value = TRUE
+            ))
+
+# Different predictor sets to test
+pred_sets <- list(all = grep("_diff",pred, value = TRUE, invert = TRUE), 
+                  soil = grep("_diff|_root",pred, value = TRUE, invert = TRUE),
+                  root = c(grep("_diff|_soil",pred, value = TRUE, invert = TRUE), "pH_soil"),
+                  diff = c(grep("_soil|_root",pred, value = TRUE, invert = TRUE), "pH_soil"))
+
+# Response variables
+outcomes <- c("TotC","MAOMC","MAOMC_mb","POMC", "TotC_st","MAOMC_st","MAOMC_st_mb","POMC_st")
+
+
+# Base Recipe for all variables
+base_rcp <- 
+  recipe(TotC ~ ., data = df_fit) |> 
+  update_role(-all_of(c(pred,"TotC")), new_role = "ID") |> 
+  step_dummy(all_nominal_predictors()) |> 
+  step_normalize(all_predictors()) |> 
+  step_zv(all_predictors())
+
+# Log-transformed recipe
+log_rcp <- 
+  recipe(TotC ~ ., data = df_fit) |> 
+  update_role(-all_of(c(pred,"TotC")), new_role = "ID") |> 
+  step_dummy(all_nominal_predictors()) |> 
+  step_mutate_at(contains(c("_root","_soil","_diff")), fn = \(x) log(x - min(x) + 1)) |> 
+  step_normalize(all_predictors()) |> 
+  step_zv(all_predictors())
+
+  
+# test_raw <- base_rcp |> prep() |> bake(new_data = NULL)
+# test_log <- log_rcp |> prep() |> bake(new_data = NULL)
+# plot(test_log$Fe_ppm_root,test_raw$Fe_ppm_root)
+
+
+# Create recipe for each outcome
+rcps <-
+  expand_grid(
+    outcome = outcomes,
+    pred = pred_sets,
+    transform = list(raw = base_rcp,
+                     log = log_rcp)
+  ) |>
+  mutate(
+    data_id = names(transform),
+    pred_id = names(pred),
+    rcps = pmap(
+      list(outcome, pred, transform),
+      \(o, p, t) t |> 
+        update_role(all_outcomes(), new_role = "ID") |> 
+        update_role(all_of(o), new_role = "outcome") |> 
+        update_role(all_predictors(), new_role = "ID") |> 
+        update_role(all_of(p), new_role = "predictor")
+    )
+  ) |> 
+  select(-transform)
+
+
+# GLMNET model spec
+gn_specs = list(
+  ridge = linear_reg(penalty = tune(), mixture = 0) |>
+    set_engine("glmnet") |>
+    set_mode("regression"),
+  lasso =
+    linear_reg(penalty = tune(), mixture = 1) |>
+    set_engine("glmnet") |>
+    set_mode("regression")
+)
+```
+
+```{r}
+# Grid of GLMNET penalty
+gn_grid <- grid_regular(penalty(range = c(-2, 2)),
+                        #mixture(range = c(0, 1)),
+                        levels = 30)
+
+# Set up parallel cores
+all_cores <- parallel::detectCores(logical = TRUE)
+cl <- makePSOCKcluster(all_cores-1)
+registerDoParallel(cl)
+
+# Workflows
+reg_results <- expand_grid(rcps, gn_specs) |>
+  mutate(
+    spec_id = names(gn_specs),
+    wfs = map2(rcps, gn_specs, \(x, y) workflow(
+      preprocessor = x, spec = y
+    )),
+    run = paste(outcome, data_id, spec_id, sep = "-"),
+    across(where(is.character), fct),
+    tuned_wfs = map(wfs,
+                     \(x) tune_grid(x, resamples = df_cv, grid = gn_grid))
+  ) 
+
+# Unnest regularization curves   
+reg_curves <- reg_results |>
+  select(where(is.factor),tuned_wfs) |>
+  mutate(
+    all_perf = map(tuned_wfs, \(x) collect_metrics(x)),
+    best_perf = map(
+      tuned_wfs,
+      \(x) select_best(x, metric = "rmse")
+    )
+  ) |>
+  select(-tuned_wfs)
+
+# Create final fits
+fits_final <- reg_results |>
+  #left_join(enframe(dfs, name = "data_id", value = "df"), by = "data_id") |>
+  mutate(
+    wfs_final = map2(wfs,
+                     tuned_wfs,
+                     \(x, y) finalize_workflow(
+                       x,
+                       select_best(y,
+                                          metric = "rmse")
+                     )),
+    fit_final = future_map(wfs_final, \(x) fit(x, data = df_fit)),
+    prms = future_map(fit_final, \(x) tidy(x))
+  ) |> 
+  select(outcome, pred_id, spec_id, data_id, run, wfs_final, fit_final, prms)
+ 
+#rm(reg_results)    
+```
+
+@fig-reg-curves shows the RMSE and $R^2$ as a function of the penalty parameter (i.e., regularization curves) for the cross-validation for each soil carbon outcome. Ideally, the RMSE ($R^2$) curves would decrease (increase) with a greater penalty (i.e. more regularization) as we reduce variance (i.e., over-fitting errors to out-of-bag samples), but then increase (decrease) as model bias (i.e. model' inability to describe the data) increases. Here, we focus on RMSE as $R^2$ is known to be positively biased for small samples [@cramer1987]. Here are the key takeaways:
+
+-   Only the raw dataset (not spatially corrected) appears to provide a decent predictive model. The monotonically decreasing curve with penalty parameter (until it becomes horizontal) for POM and *sa_reml* and *sa_gcv* indicates that performance is best as all parameters are shrunk to 0---this is the same as saying the mean or an intercept model is more predictive than our model. This is further highlighted by these curves having all values at or above 1, which indicates the standard deviation of the data. The fact that the raw red curves for MAOM and Total C lie below 1 indicates that our model is explaining some of the variance in the out-of-bag samples.
+
+-   The LASSO (triangles) results tend to give same or better performance (lower RMSE) than the ridge regression (circles). This is a positive as the *glmnet* algorithm for LASSO performs feature selection by forcing weaker parameters to 0.
+
+-   The $R^2$ regularization curves are more variable and erratic, likely due to the poor efficiency of the metric with small samples [@cramer1987].
+
+-   The chosen penalty parameters is shown by the vertical line for each regression.
+
+```{r}
+#| label: fig-reg-curves
+#| fig-cap: |
+#|  The regularization curves from 10-fold cross-validation used to specify the 
+#|  penalty value for the Ridge and LASSO regressions for soil C concentrations.
+#| fig-width: 8
+#| fig-height: 6
+#| dependson: tune-penalty
+
+df_cv_stats <- df_cv |>
+  mutate(sd = map(splits, \(x) assessment(x) |>
+                    summarize(across(
+                      .cols = all_of(outcomes), \(x) sd(x, na.rm = TRUE)
+                    )))) |>
+  unnest(sd) |>
+  pivot_longer(cols = all_of(outcomes), names_to = "outcome") |>
+  group_by(outcome) |>
+  summarize(median_sd = median(value, na.rm = TRUE)) |>
+  ungroup()
+ 
+# Collect regularization curves
+reg_curves |>
+  filter(pred_id %in% "root",!(outcome %in% c("MAOMC_mb","MAOMC_st_mb"))) |>
+  unnest(all_perf) |>
+  filter(.metric %in% "rmse") |> 
+  left_join(df_cv_stats, by = c("outcome")) |>
+  mutate(
+    mean = ifelse(.metric  %in% "rmse", mean / median_sd, mean),
+    std_err = ifelse(.metric  %in% "rmse", std_err / median_sd, std_err)
+  ) |>
+  ggplot(aes(
+    x = log10(penalty),
+    y = mean,
+    color = data_id,
+    linetype = spec_id,
+    shape = spec_id
+  )) +
+  geom_errorbar(aes(ymin = mean - std_err, ymax = mean + std_err),
+                width =
+                  .1) +
+  #geom_line(size = 1, linetype = "dashed") +
+  geom_point(size = 1) +
+  # geom_point(data = reg_curves |> unnest(best_perf)) +
+  geom_vline(
+    data = reg_curves |> filter(pred_id %in% "root",!(outcome %in% c("MAOMC_mb","MAOMC_st_mb"))) |> unnest(best_perf),
+    aes(
+      xintercept = log10(penalty),
+      color = data_id,
+      linetype = spec_id,
+    ),
+    linewidth = 0.5
+  ) +
+  scale_y_continuous("Cross-validation Statistic") +
+  scale_x_continuous("Penalty Parameter") +
+  facet_wrap(~ outcome, scales = "fixed", nrow=3) +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom", legend.justification = "center")
+
+fig_path <- "./04-outputs/02-figures/03-manuscript"
+ggsave2(file.path(fig_path, "fig-s8.jpg"),
+        width = 6.5, height = 6.5)
+
+```
+
+@fig-reg-curves-st shows the regularization curves for the soil carbon stocks. Interestingly, the spatially corrected regressions do show an optimum performance (i.e., minimum RMSE). However, their values are all above 1, which indicates that the model is explaining little if any of the variability in the out-of-bag samples. In other words, a certain penalty improves performance, but that model does not outperform the mean as a predictor.
+
+```{r}
+#| label: fig-reg-curves-st
+#| fig-cap: |
+#|  The regularization curves from 10-fold cross-validation used to specify the 
+#|  penalty value for the Ridge and LASSO regressions for soil C stocks.
+#| fig-width: 8
+#| fig-height: 6
+#| dependson: tune-penalty
+
+ 
+# Collect regularization curves
+reg_curves |>
+  filter(pred_id %in% "root", outcome %in% c("TotC_st", "MAOMC_st", "POMC_st")) |>
+  unnest(all_perf) |>
+  left_join(df_cv_stats, by = c("outcome")) |>
+  mutate(
+    mean = ifelse(.metric  %in% "rmse", mean / median_sd, mean),
+    std_err = ifelse(.metric  %in% "rmse", std_err / median_sd, std_err)
+  ) |>
+  ggplot(aes(
+    x = log10(penalty),
+    y = mean,
+    color = data_id,
+    linetype = spec_id,
+    shape = spec_id
+  )) +
+  geom_errorbar(aes(ymin = mean - std_err, ymax = mean + std_err),
+                width =
+                  .2) +
+  #geom_line(size = 1, linetype = "dashed") +
+  geom_point(size = 2) +
+  # geom_point(data = reg_curves |> unnest(best_perf)) +
+  geom_vline(
+    data = reg_curves |> filter(pred_id %in% "all", outcome %in% c("TotC_st", "MAOMC_st", "POMC_st")) |> unnest(best_perf),
+    aes(
+      xintercept = log10(penalty),
+      color = data_id,
+      linetype = spec_id,
+    ),
+    linewidth = 0.5
+  ) +
+  scale_y_continuous("Cross-validation Statistic") +
+  scale_x_continuous("Penalty Parameter") +
+  facet_grid2(`.metric` ~ outcome, scales = "free", independent = "none") +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom", legend.justification = "center")
+
+```
+
+Lastly, we take a closer look at the MAOM regularization curves with respect to the full (*all*) and subset (*no_metals*) of predictors. We see that the only useful model is with the raw dataset. Using all predictors appears to offer a slight benefit for performance, as does the LASSO method.
+
+```{r}
+#| label: fig-reg-curves-maom
+#| fig-cap: |
+#|  The regularization curves from 10-fold cross-validation used to specify the 
+#|  penalty value for the Ridge and LASSO regressions.
+#| fig-width: 8
+#| fig-height: 4
+#| dependson: tune-penalty
+
+
+ 
+# Collect regularization curves
+reg_curves |>
+  unnest(all_perf) |>
+  filter(outcome %in% "MAOMC", .metric %in% "rmse") |>
+  left_join(df_cv_stats, by = c("outcome")) |>
+  mutate(
+    mean = ifelse(.metric  %in% "rmse", mean / median_sd, mean),
+    std_err = ifelse(.metric  %in% "rmse", std_err / median_sd, std_err)
+  ) |>
+  ggplot(aes(
+    x = log10(penalty),
+    y = mean,
+    color = spec_id,
+    linetype = pred_id,
+    shape = pred_id
+  )) +
+  geom_errorbar(aes(ymin = mean - std_err, ymax = mean + std_err),
+                width =
+                  .2) +
+  #geom_line(size = 1, linetype = "dashed") +
+  geom_point(size = 2) +
+  # geom_point(data = reg_curves |> unnest(best_perf)) +
+  geom_vline(
+    data = reg_curves |> filter(outcome %in% "MAOMC") |> unnest(best_perf),
+    aes(
+      xintercept = log10(penalty),
+      color = spec_id,
+      linetype = pred_id,
+    ),
+    linewidth = 0.5
+  ) +
+  scale_y_continuous("Cross-validation Statistic") +
+  scale_x_continuous("Penalty Parameter") +
+  facet_grid2(pred_id ~ data_id, scales = "fixed", independent = "none") +
+  theme_cowplot(fs) + 
+  theme(legend.position = "bottom", legend.justification = "center")
+```
+
+## Extract Effects from Regularized Regression
+
+### Cross-validate Effects
+
+Rather than simply fitting the finalized regularized regression models to the full data set to get a point estimate of effects, we would like to get a better estimate of the sampling distribution of the effects and the model predictive performance. To do this, we repeat the 10-fold cross-validation 10 times using the tuned penalty parameter. This provides us 100 estimates of the predictor effects and 100 estimates of out-of-bag performance. Note, this is very similar to bootstrapping except we guarantee the model is trained on 90% of the data rather than the average 63% in bootstrapping. This is critical in our analysis as we only have 66 data points.
+
+```{r}
+#| eval: true
+#| label: setup-effects-plot
+#| dependson: tune-penalty
+
+
+pred_plt <-
+  c(
+    "agb",
+    #"height",
+    "cop_id_Non.coppiced",
+    "SiCl",
+    "pH_soil",
+    #"base_sat",
+    #"CEC",
+    "root_CN",
+    "Lig",
+    sort(c(
+    grep("_soil", colnames(df_fit |> select(-pH_soil)), value = TRUE),
+    grep("_root", colnames(df_fit |> select(-pH_root)), value = TRUE),
+    grep("_diff", colnames(df_fit |> select(-pH_diff)), value = TRUE)))
+  )
+
+
+pred_labels <-
+  c(
+    "Growth",
+    #"Height",
+    "Not Coppiced",
+    "Silt + Clay",
+    "Soil pH",
+    "Root C/N",
+    "Root Lignin",
+    "Diff Al",
+    "Root Al",
+    "Soil Al",
+    "Root B",
+    "Diff Cu",
+    "Root Cu",
+    "Soil Cu",
+    "Diff Fe",
+    "Root Fe",
+    "Soil Fe",
+    "Diff Mn",
+    "Root Mn",
+    "Soil Mn",
+    "Diff Na",
+    "Root Na",
+    "Soil Na",
+    "Diff Ni",
+    "Root Ni",
+    "Soil Ni",
+    "Diff Ca",
+    "Root Ca",
+    "Soil Ca",
+    "Diff K",
+    "Root K",
+    "Soil K",
+    "Diff Mg",
+    "Root Mg",
+    "Soil Mg",
+    "Diff P",
+    "Root P",
+    "Soil P",
+    "Root S",
+    "Diff Zn",
+    "Root Zn",
+    "Soil Zn"
+  )
+
+pred_pools <-
+  c(
+    "Aboveground",
+    #"Aboveground",
+    "Aboveground",
+    replicate(2, "Soil"),
+    replicate(2, "Root"),
+    "Root-Soil",
+    "Root",
+    "Soil",
+    "Root",
+    rep(c("Root-Soil","Root", "Soil"), 9),
+    "Root",
+    "Root-Soil",
+    "Root",
+    "Soil"
+  )
+
+var_key <- tibble(term = pred_plt, 
+                  label = pred_labels, 
+                  pool = pred_pools)
+```
+
+```{r}
+#| eval: true
+#| label: rep-cv-fits
+#| dependson: setup-effects-plot
+
+# Add more resamples
+v_folds <- 10
+v_rep <- 20
+make_df_cv <- \(x) vfold_cv(x,
+                            v = v_folds,
+                            repeats = v_rep)
+
+df_cv <- make_df_cv(df_fit)
+
+# Create new cv sets
+tidy_ctrl <- control_grid(extract = \(x) tidy(x))
+
+cv_fits <- fits_final |>
+  #left_join(df_cv, by = "data_id") |> 
+  select(c(outcome:run, wfs_final)) |>
+  mutate(
+    cv_fit = map(
+      wfs_final,
+      \(x) fit_resamples(x, resamples = df_cv, control = tidy_ctrl)
+    ),
+    metrics = map(cv_fit, \(x) collect_metrics(x, summarize = FALSE)),
+    effects = map(cv_fit, collect_extracts)
+  ) |> 
+  select(-cv_fit)
+```
+
+We first take a look at the effects distribution for soil carbon concentrations, comparing the full and reduced set up predictors. @fig-c-effects-pred illustrates that both sets of predictors give similar signs yet varying magnitudes and spreads of effects. In particular, including all predictors appears to increase the magnitude and spread of the root Mg effect, while 4 or the 12 root metals appear to have a non-negligible effect. Note, POM shows all effects centered around zero as the regularization simply creates an intercept model.
+
+```{r}
+#| eval: true
+#| label: fig-c-effects-pred
+#| fig-cap: "Site and phenotypic effects on soil C concentration for differing predictors using the LASSO method and raw data."
+#| fig-width: 8
+#| fig-height: 8
+#| dependson: rep-cv-fits
+
+cv_fits |>
+  select(-metrics) |>
+  unnest(effects) |>
+  unnest(.extracts) |> 
+  filter(term %in% pred_plt,
+         outcome %in% c("TotC", "MAOMC", "POMC"),
+         data_id %in% "raw",
+         spec_id %in% "lasso",
+         pred_id %in% c("all","soil","root")) |>
+  mutate(phenotype  = fct_recode(
+    outcome,
+    MAOM = "MAOMC",
+    POM = "POMC",
+    Total = "TotC"
+  )) |> 
+  left_join(var_key, by = "term") |> 
+  mutate(label = fct(label, levels = rev(var_key$label))) |> 
+  ggplot(aes(
+    y = label,
+    x = estimate,
+    fill = pool,
+    alpha = pred_id,
+    linetype = pred_id
+  )) +
+  ggridges::geom_density_ridges(scale = 2, rel_min_height = 0,linewidth = 0.2) +
+  geom_vline(xintercept = 0) +
+   scale_linetype_manual(name = "Model",values = c("all" = "dashed", "root" = "solid", "soil" = "dotted"), labels = c("Root + Soil", "Root Only", "Soil Only")) +
+  scale_alpha_manual(name = "Model", values = c("all" = 1, "root" = 0.1, "soil" = 0.5), labels = c("Root + Soil", "Root Only", "Soil Only")) +
+  xlab("Soil C Conc. Effect [mg C/g soil/SD]") +
+  ylab("Predictor") +
+  facet_wrap(~phenotype, scales = "free_x") +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom",
+        legend.justification = "center") +
+  guides(fill = "none")
+
+fig_path <- "./04-outputs/02-figures/03-manuscript"
+ggsave2(file.path(fig_path, "fig-s10.jpg"),
+        width = 6.5, height = 6.5)
+```
+
+Overall, the soil C stock effects (@fig-c-effects-pred-st) appear to agree with the previous concentration results.
+
+```{r}
+#| eval: true
+#| label: fig-c-effects-pred-st
+#| fig-cap: "Site and phenotypic effects on soil C stock for differing predictors using the LASSO method and raw data."
+#| fig-width: 8
+#| fig-height: 8
+#| dependson: rep-cv-fits
+
+cv_fits |>
+  select(-metrics) |>
+  unnest(effects) |>
+  unnest(.extracts) |> 
+  filter(term %in% pred_plt,
+         outcome %in% c("TotC_st", "MAOMC_st", "POMC_st"),
+         data_id %in% "raw",
+         spec_id %in% "lasso",
+         pred_id %in% c("all","soil","root")) |>
+  mutate(phenotype  = fct_recode(
+    outcome,
+    MAOM = "MAOMC_st",
+    POM = "POMC_st",
+    Total = "TotC_st"
+  )) |> 
+  left_join(var_key, by = "term") |> 
+  mutate(label = fct(label, levels = rev(var_key$label))) |> 
+  ggplot(aes(
+    y = label,
+    x = estimate,
+    fill = pool,
+    alpha = pred_id,
+    linetype = pred_id
+  )) +
+  ggridges::geom_density_ridges(scale = 2, rel_min_height = 0,linewidth = 0.2) +
+  geom_vline(xintercept = 0) +
+   scale_linetype_manual(name = "Model",values = c("all" = "dashed", "root" = "solid", "soil" = "dotted"), labels = c("Root + Soil", "Root Only", "Soil Only")) +
+  scale_alpha_manual(name = "Model", values = c("all" = 1, "root" = 0.1, "soil" = 0.5), labels = c("Root + Soil", "Root Only", "Soil Only")) +
+  xlab("Soil C Stock Effect [tonnes C/ha/SD]") +
+  ylab("Trait/Property") +
+  facet_wrap(~phenotype, scales = "free_x") +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom",
+        legend.justification = "center") +
+  guides(fill = "none")
+
+fig_path <- "./04-outputs/02-figures/03-manuscript"
+ggsave2(file.path(fig_path, "fig-s11.jpg"),
+        width = 6.5, height = 6.5)
+```
+
+Finally, we look at the predictive performance distributions (@fig-c-effects-perf) to verify our final assumption set for the manuscript figures. We see that all predictors appear to reduce RMSE, while there is minimal performance difference between LASSO
+
+```{r}
+#| eval: true
+#| label: fig-c-effects-perf
+#| fig-cap: "Predictive performance of regularized regression models for differing soil outcomes and predictors."
+#| fig-width: 8
+#| fig-height: 8
+#| dependson: rep-cv-fits
+cv_fits |>
+  select(-effects) |>
+  unnest(metrics) |>
+  left_join(df_cv_stats, by = c("outcome")) |>
+  mutate(.estimate = ifelse(.metric  %in% "rmse", .estimate / median_sd, .estimate)) |>
+  filter(data_id %in% "raw",
+         pred_id %in% c("all","root"),!(outcome %in% c("MAOMC_mb","MAOMC_st_mb"))) |> 
+  mutate(pred_id = ifelse(pred_id %in% c("all"), "Root + Soil", "Root Only")) |>
+  ggplot(aes(
+    y = outcome,
+    x = .estimate,
+    color = pred_id,
+    fill = pred_id,
+    linetype = spec_id
+  )) +
+  ggridges::geom_density_ridges(scale = 1, alpha = 0.4) +
+  geom_vline(xintercept = 1) +
+  #scale_fill_manual(values = c("red",NA)) +
+  xlab("Soil C Conc. Effect [mg C/g soil/SD]") +
+  ylab("Predictor") +
+  facet_wrap( ~ .metric, scales = "free_x") +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom",
+        legend.justification = "center")
+
+fig_path <- "./04-outputs/02-figures/03-manuscript"
+ggsave2(file.path(fig_path, "fig-s9.jpg"),
+        width = 6.5, height = 4)
+```
+
+### Selected Effects
+
+For the publication, we have decided to focus on MAOM concentration effects for all predictors using the raw data and showing both the ridge and LASSO regression results. @fig-5-pub is Figure 5 in the manuscript.
+
+```{r}
+#| eval: true
+#| label: fig-5-pub
+#| fig-cap: |
+#|  Site and phenotypic effects on soil C fractions for all predictors
+#|  and regularizations using the raw data.
+#| fig-width: 6
+#| fig-height: 7
+#| dependson: rep-cv-fits
+
+cv_fits |>
+  select(-metrics) |>
+  unnest(effects) |>
+  unnest(.extracts) |> 
+  filter(term %in% pred_plt,
+         outcome %in% c("MAOMC"),
+         data_id %in% "raw",
+         spec_id %in% "lasso",
+         pred_id  %in% c("root", "all")) |>
+  mutate(outcome  = fct_recode(
+    outcome,
+    MAOM = "MAOMC",
+    POM = "POMC",
+    Total = "TotC"
+  )) |> 
+  left_join(var_key, by = "term") |> 
+  mutate(label = fct(label, levels = rev(var_key$label))) |> 
+  ggplot(aes(
+    y = label,
+    x = estimate,
+    fill = pool,
+    linetype = pred_id,
+    alpha = pred_id
+    #color = pool
+  )) +
+  ggridges::geom_density_ridges(scale = 1, rel_min_height = 0,linewidth = 0.2) +
+  geom_vline(xintercept = 0, linetype = "solid", linewidth = 0.1) +
+  scale_linetype_manual(name = "Model",values = c("all" = "dashed", "root" = "solid"), labels = c("Root + Soil", "Root Only")) +
+  scale_alpha_manual(name = "Model", values = c("all" = 1, "root" = 0.1), labels = c("Root + Soil", "Root Only")) +
+  #geom_col(position = "dodge", color = "black") +
+  xlab("MAOM C Conc. Effect [mg C/g soil/SD]") +
+  ylab("Trait/Property") +
+  #facet_wrap(~outcome, scales = "free_x") +
+  theme_cowplot(fs, line_size = 0.2) +
+  theme(legend.position = "right",
+        legend.justification = "center") + 
+  guides(fill = guide_legend(title = "Compartment"))
+
+fig_path <- "./04-outputs/02-figures/03-manuscript"
+ggsave2(file.path(fig_path, "fig-6-dist.jpg"),
+        width = 5, height = 6, dpi = 600)
+```
+
+```{r}
+#| eval: false
+#| label: fig-5-asm
+#| fig-cap: |
+#|  Site and phenotypic effects on soil C fractions for all predictors
+#|  and regularizations using the raw data.
+#| fig-width: 6
+#| fig-height: 7
+#| dependson: rep-cv-fits
+
+cv_fits |>
+  select(-metrics) |>
+  unnest(effects) |>
+  unnest(.extracts) |> 
+  filter(term %in% pred_plt,
+         outcome %in% c("MAOMC"),
+         data_id %in% "raw",
+         spec_id %in% "lasso",
+         pred_id  %in% c("root")) |>
+  mutate(outcome  = fct_recode(
+    outcome,
+    MAOM = "MAOMC",
+    POM = "POMC",
+    Total = "TotC"
+  )) |> 
+  left_join(var_key, by = "term") |> 
+  mutate(label = fct(label, levels = rev(var_key$label))) |> 
+  ggplot(aes(
+    y = label,
+    x = estimate,
+    fill = pool,
+    linetype = pred_id,
+    alpha = pred_id
+    #color = pool
+  )) +
+  ggridges::geom_density_ridges(scale = 2, rel_min_height = 0,linewidth = 0.01) +
+  geom_vline(xintercept = 0, linetype = "solid", linewidth = 0.1) +
+  scale_linetype_manual(name = "Predictors",values = c("all" = "dashed", "root" = "solid")) +
+  scale_alpha_manual(name = "Predictors", values = c("all" = 0.3, "root" = 1)) +
+  #geom_col(position = "dodge", color = "black") +
+  xlab("MAOM C Effect [mg C/g soil/SD]") +
+  ylab(NULL) +
+  #facet_wrap(~outcome, scales = "free_x") +
+  theme_cowplot(16) +
+  theme(legend.position = "none",
+        legend.justification = "center") + 
+  guides(fill = guide_legend(title = "Pool"))
+
+
+ggsave2(file.path(fig_path_asm, "fig-eff.jpg"),
+        width = 6.5, height = 6.5)
+```
+
+For completeness, we show the Total and MAOM effects for both concentration and stock in @fig-5-both and @fig-5-st. Total C closely mirrors MAOM results given soil C at Clatskanie is mostly MAOM (@fig-4-pub).
+
+```{r}
+#| eval: true
+#| label: fig-5-both
+#| fig-cap: |
+#|  Site and phenotypic effects on soil C fractions for all predictors
+#|  and regularizations using the raw data.
+#| fig-width: 6
+#| fig-height: 7
+#| dependson: rep-cv-fits
+
+
+cv_fits |>
+  select(-metrics) |>
+  unnest(effects) |>
+  unnest(.extracts) |> 
+  filter(term %in% predictors_plt,
+         outcome %in% c("TotC", "MAOMC"),
+         data_id %in% "raw",
+         pred_id  %in% "all") |>
+  mutate(outcome  = fct_recode(
+    outcome,
+    MAOM = "MAOMC",
+    POM = "POMC",
+    Total = "TotC"
+  )) |> 
+  left_join(var_key, by = "term") |> 
+  mutate(label = fct(label, levels = rev(var_key$label))) |> 
+  ggplot(aes(
+    y = label,
+    x = estimate,
+    fill = pool,
+    linetype = spec_id,
+    alpha = spec_id
+  )) +
+  ggridges::geom_density_ridges(scale = 2) +
+  geom_vline(xintercept = 0) +
+  #geom_col(position = "dodge", color = "black") +
+  xlab("Soil C Effect [mg C/g soil/SD]") +
+  ylab("Predictor") +
+  facet_wrap(~outcome, scales = "free_x") +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom",
+        legend.justification = "center")
+
+fig_path <- "./04-outputs/02-figures/03-manuscript"
+ggsave2(file.path(fig_path, "fig-6-dist.jpg"),
+        width = 6, height = 7)
+```
+
+```{r}
+#| eval: true
+#| label: fig-5-st
+#| fig-cap: |
+#|  Site and phenotypic effects on soil C fractions for all predictors
+#|  and regularizations using the raw data.
+#| fig-width: 6
+#| fig-height: 7
+#| dependson: rep-cv-fits
+
+
+cv_fits |>
+  select(-metrics) |>
+  unnest(effects) |>
+  unnest(.extracts) |> 
+  filter(term %in% pred_plt,
+         outcome %in% c("TotC_st", "MAOMC_st"),
+         data_id %in% "raw",
+         pred_id  %in% "all") |>
+  mutate(outcome  = fct_recode(
+    outcome,
+    MAOM = "MAOMC_st",
+    Total = "TotC_st"
+  )) |> 
+  left_join(var_key, by = "term") |> 
+  mutate(label = fct(label, levels = rev(var_key$label))) |> 
+  ggplot(aes(
+    y = label,
+    x = estimate,
+    fill = pool,
+    linetype = spec_id,
+    alpha = spec_id
+  )) +
+  ggridges::geom_density_ridges(scale = 2) +
+  geom_vline(xintercept = 0) +
+  #geom_col(position = "dodge", color = "black") +
+  xlab("Soil C Effect [mg C/g soil/SD]") +
+  ylab("Predictor") +
+  facet_wrap(~outcome, scales = "free_x") +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom",
+        legend.justification = "center")
+```
+
+Finally, we zoom in on the performance for all predictors and LASSO regression for the relevant soil C concentrations and stocks (@fig-5-perf). Most notably, the predictive model is worse for stock compared to concentration.
+
+```{r}
+#| eval: true
+#| label: fig-5-perf
+#| fig-cap: "Performance of LASSO models for soil C concentration and stock for differing sets of predictors."
+#| fig-width: 6
+#| fig-height: 7
+#| dependson: rep-cv-fits
+
+cv_fits |>
+  select(-effects) |>
+  unnest(metrics) |>
+  left_join(df_cv_stats, by = c("outcome")) |>
+  mutate(.estimate = ifelse(.metric  %in% "rmse", .estimate / median_sd, .estimate)) |>
+  filter(data_id %in% "raw",
+         spec_id %in% "lasso",
+         outcome %in% c("MAOMC","TotC","MAOMC_st","TotC_st")) |> 
+  ggplot(aes(
+    y = outcome,
+    x = .estimate,
+    fill = pred_id,
+    linetype = pred_id
+  )) +
+  ggridges::geom_density_ridges(scale = 1, alpha = 0.4) +
+  geom_vline(xintercept = 1) +
+  xlab("Soil C Effect [mg C/g soil/SD]") +
+  ylab("Predictor") +
+  facet_wrap( ~ .metric, scales = "free_x") +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom",
+        legend.justification = "center")
+```
+
+# Genotype Influence on C Sequestration
+
+There are several estimates we can obtain for the variability in soil carbon stock due to genotype. The least conservative approach is to simply calculate the genotype means from the raw and spatially corrected data. A more conservative approach is to look at the best linear unbiased predictors (BLUPs) from the heritability analysis. In @fig-7-all we show the soil C sequestration rates for both analyses and all data sets. The main takeaway is that the heritability analysis gives a much smaller range than the genotype averages---even compared to the spatially-corrected datasets. I would venture to guess that this is because we only have 3 replicates and the mixed effects model is not very confident in the genotype effects, thus it shrinks them toward the global mean and reduces the overall variance. I would argue we could look at the heritability versus simple averages as lower and upper bounds for effects.
+
+```{r}
+#| eval: true
+#| label: fig-7-all
+#| fig-cap: "Comparison of genotype soil C stock variability across spatial correction, C fraction, and analysis type."
+#| fig-width: 6
+#| fig-height: 7
+
+
+# Combine genotype averages and mixed effects results
+H2_update <- H2_results |> 
+  unnest(gt_eff) |> 
+  rename(
+    method = data,
+    name = phenotype,
+    genotype = Level,
+    value = Coefficient
+  ) |> 
+  select(name, model, method, genotype, value)
+
+df_gt_avg_update <- df_fit |> group_by(genotype) |>
+  summarize(across(
+    .cols = c("TotC_st", "TotC_st_30", "MAOMC_st", "POMC_st"),
+    .fns = \(x) mean(x, na.rm = TRUE)
+  )) |> 
+  pivot_longer(-genotype) |> 
+  mutate(model = "avg",
+         method = "raw") |> 
+  select(name, model, method, genotype, value) |> 
+  group_by(method,name) |> 
+  mutate(value = value - mean(value, na.rm = TRUE)) |> 
+  ungroup()
+
+df_gt_plt <- list(Heritability = H2_update, Average = df_gt_avg_update) |> 
+  bind_rows(.id = "analysis")
+
+# df_gt_plt |> 
+#   filter(name %in% c("TotC_st"), method  %in% "raw") |> 
+#   group_by(analysis, name, model, method) |> 
+#   mutate(value = value/13) |> 
+#   skimr::skim(value)
+  
+df_gt_plt |> 
+  filter(name %in% c("TotC_st", "TotC_st_30", "MAOMC_st", "POMC_st")) |>
+  ggplot(aes(x = value/13, y = method, color = model, linetype = analysis)) + 
+  geom_boxplot() +
+  xlab("Soil C Effect [tonnes C/ha/yr]") +
+  ylab("Data Correction") +
+  facet_wrap(~name, scale = "free_x") +
+  theme_cowplot(fs)
+```
+
+For Figure 7 in the manuscript, I have focused on Total Soil C and the raw data set for the heritability and simple average at 0-15 cm depth (@fig-7-pub).
+
+```{r}
+#| eval: true
+#| label: fig-7-pub
+#| fig-cap: "Comparison of genotype soil C stock variability across spatial correction, C fraction, and analysis type."
+#| fig-width: 4
+#| fig-height: 3
+
+df_gt_plt_mod <- df_gt_plt |>
+  filter(name %in% c("TotC_st"),
+         model %in% c("full", "avg"),
+         method %in% "raw") |>
+  mutate(sel = ifelse(genotype %in% c("BESC-35", "BESC-131", "GW-9768", "BESC-36"), "select", "not"))
+
+df_gt_plt_mod |>
+  ggplot(aes(x = value / 13, y = analysis, color = analysis)) +
+  geom_boxplot(outliers = FALSE, linewidth = 0.3) +
+  geom_point(aes(shape = sel, fill = analysis),position = position_jitter(seed=0), size = 1, stroke = 0.2) +
+  scale_shape_manual(values = c("select" = 25, "not" = 1)) +
+  #geom_text(data = df_gt_plt_mod |> filter(sel %in% "select"),aes(label = genotype)) +
+  xlab("Genotype Effect on \n Total Soil C [tonnes C/ha/yr]") +
+  ylab("Analysis") +
+  coord_cartesian(xlim = c(-2.5,2.5)) +
+  theme_cowplot(fs, line_size = 0.3) +
+  theme(
+    #axis.text.y = element_blank(),
+    #axis.title.y = element_blank(),
+    legend.position = "none"
+  ) 
+
+fig_path <- "./04-outputs/02-figures/03-manuscript"
+ggsave2(file.path(fig_path, "fig-7-gt.pdf"),
+        width = 4, height = 3)
+
+write_csv(df_gt_plt |>
+  filter(name %in% c("TotC_st"),
+         model %in% c("full", "avg"),
+         method %in% "raw"),file.path(fig_path,"gt-eff-for-map.csv"))
+```
+
+```{r}
+df_gt_plt |>
+  filter(name %in% c("TotC_st"),
+         model %in% c("full", "avg"),
+         method %in% "raw") |> 
+  group_by(model) |> 
+  mutate(rnk = rank(value), mutate=value/13) |> 
+  arrange(rnk) |> 
+  gt()
+```
+
+-   Double-check 0-30 cm stock calcs with John and figure out why the heritability is so poor. I would hypothesize that the compressed genotype variability is more indicative of poor mixed effect model fit and noisy data than the actual genotype influence.
+
+-   Extract the uncertainty in random effect standard deviation and explore normality of the genotype averages.
+
+-   Create a synthetic data analysis where we have a spatial field of initial C that covaries with texture and we superimpose all positive genotype effects contaminated with noise. Can the spatial confounding and current models actually detect the average change in soil C and genotype effects at n = 3
+
+```{r}
+#| eval: true
+#| label: fig-7-depths
+#| fig-cap: "Comparison of genotype soil C stock variability across spatial correction, C fraction, and analysis type."
+#| fig-width: 4
+#| fig-height: 3
+
+df_gt_plt |>
+  filter(name %in% c("TotC_st", "TotC_st_30"),
+         model %in% c("full", "avg"),
+         method %in% "raw") |>
+  ggplot(aes(x = value / 13, y = analysis, color = name)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_point(position = position_jitterdodge()) +
+  xlab("Genotype Effect on \n Total Soil C [tonnes C/ha/yr]") +
+  ylab("Analysis") +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom",
+        legend.justification = "center")
+```
+
+# Supplement
+
+```{r}
+df_fit |>
+  pivot_longer(cols = c(MAOMC, POMC, agb, height)) |>
+  group_by(name) |>
+  mutate(value = value - mean(value, na.rm = TRUE)) |>
+  ungroup() |>
+  group_by(genotype, name) |>
+  summarize(value = mean(value, na.rm = TRUE)) |>    
+  ungroup() |>    
+  ggplot(aes(
+    y = fct_rev(genotype),
+    x = value,
+    fill = genotype
+  )) +
+  geom_col(position = "dodge", color = "black") +
+  xlab("Average Mean Deviation") +
+  ylab("Genotype") +
+  facet_wrap( ~ name, nrow = 1, scales = "free_x") +
+  theme_cowplot(fs) +
+  theme(legend.position = "bottom", legend.justification = "center") +
+  guides(fill = FALSE) 
+```
+
+I am searching for genotypic differences in total and mineral associated organic matter in the selected poplar trees at Clatskanie. @fig-geno shows the deviation from the mean of Total and MAOM C, where the change in colors indicates a change in genotype as there are ideally three replicates for each. Here, we focus only on the 0-15 cm soil core results as they have the most complete data set and likely corresponds best to the root chemistry and exudate results. There are only two genotypes that have positive influence across all blocks and for both C variables---BESC-265 and BESC-131. The genotype BESC-841 has an overall negative effect for both C variables, while BESC-192 has an overall negative effect on MAOM. Note, the maximum mean deviations are on the order 4%, so not really that large.
+
+```{r}
+#| label: fig-geno
+#| fig-cap: |
+#|  Deviation in a) Total and b) Mineral-associated soil carbon in the top
+#|  0-15 cm of soil for 23 different poplar genotypes replicated across three
+#|   blocks. The shading acts as a separation between genotypes.
+#| fig-width: 8
+#| fig-height: 9
+
+df_fit |>
+  mutate(across(.cols = c(TotC, MAOMC, POMC), \(x) x - mean(x))) |>
+  pivot_longer(cols = c(TotC, MAOMC, POMC)) |>
+  ggplot(aes(
+    y = tree,
+    x = value,
+    fill = (as.numeric(genotype) %% 2 == 0),
+  )) +
+  geom_col(position = position_dodge()) +
+  ylab("Tree") +
+  xlab("0-15 cm C Deviation \n [tonnes C/ha soil]") +
+  theme_cowplot(fs) +
+  facet_wrap( ~ name, nrow = 1) +
+  theme(legend.position = "none")
+```
+
+Next, we look at the change in soil carbon with various environmental and root drivers that are thought to be critical by biogeochemical models such as DayCent @parton1998. DayCent assumes that the total soil C increases with aboveground biomass (AGB), clay percentage, root lignin, and litter C/N. The thought behind each component is that increased AGB increases C inputs via increased litter, increased root lignin and litter C/N reduces decomposition efficiency leading to soil C accumulation, and increased clay provides sources for mineral association. However, there are feedbacks due to the influence of decreased decomposition on the availability of N and the influence clay on soil moisture driving decomposition, and thus, plant productivity.
+
+```{r}
+#| label: fig-maomc
+#| fig-cap: |
+#|  Blockwise Total %C relations with site measurements.
+#| fig-width: 8
+
+df_fit |>
+  mutate(across(.cols = c(MAOMC, Clay, root_CN, Lig, agb), \(x) x - mean(x))) |>
+  ungroup() |>
+  pivot_longer(cols = c(Clay, root_CN, Lig, agb)) |>
+  ggplot(aes(
+    x = value,
+    y = MAOMC,
+    color = block
+  )) +
+  geom_point() +
+  geom_smooth(method = lm, se = FALSE, alpha = 0.1) +
+  facet_wrap(
+    ~ name,
+    scales = "free_x",
+    strip.position = "bottom",
+    labeller = as_labeller(
+      c(
+        agb = "Aboveground Biomass \n Growth [tonnes C/ha]",
+        root_CN = "Root C/N",
+        Clay = " Soil Clay %",
+        Lig = "Root Lignin %"
+      )
+    )
+  ) +
+  theme_cowplot(fs) +
+  theme(strip.background = element_blank(),
+        strip.placement = "outside") +
+  guides(
+    color = guide_legend(title = "Block"),
+    shape = guide_legend(title = "Coppice"),
+    linetype = guide_legend(title = "Coppice")
+  )
+
+```
+
+There are numerous soil, root, and AGB variables at our disposal from the Clatskanie site to attempt looking for genotypic differences and drivers for soil C accumulation. @fig-corr tries to identify significant correlations between potential predictor variables in order to not confound subsequent regression approaches. Of the variables, John was most suspicious of bulk density (*BD*) and the moisture content (*MCwetCHEM*) as these two are most likely the result of having increased soil C rather than predictors. The strong relationships with Total and MAOM C support this suspicion, and we have decided to asses our statistical models with and without these two variables. The other troubling correlations are between root C/N and the percent C and N (*pC* and *pN*), which is obvious given they are calculated from each other. Therefore, we would elect to have the root C/N as it accounts for both. Lastly, the coppiced trees are negatively correlated with AGB growth rate, which may be a little counter-intuitive given that coppicing should produce greater productivity. Although, that may be due to a smaller time period (10 years).
+
+```{r}
+#| label: fig-corr
+#| eval: true
+#| fig-width: 8.5
+#| fig-height: 8.5
+#| fig-cap: |
+#|  Correlation matrix of most soil, root, and AGB variables for Clatskanie. Note, 
+#|  only statistically significant correlations are shown.
+
+library("XICOR")
+library("psychTools")
+data(peas)
+# Visualize       the peas data
+
+ggplot(peas,aes(parent,child)) +
+geom_count() + scale_radius(range=c(0,5)) +
+       xlim(c(13.5,24))+ylim(c(13.5,24))+       coord_fixed() +
+       theme(legend.position="bottom")
+# Compute one of the coefficients
+xicor(peas$parent,peas$child,pvalue=TRUE)
+xicor(peas$child,peas$parent)
+# Compute all the coefficients
+xicor(peas)
+
+
+outcome <-
+  c(
+    "TotC",
+    "TotC_30",
+    "POMC",
+    "MAOMC",
+    "TotC_st",
+    "TotC_st_30",
+    "POMC_st",
+    "MAOMC_st",
+    "soil_CN",
+    "BD",
+    "CEC",
+    "base_sat",
+    "pH_soil",
+    "agb",
+    "height",
+    "root_CN",
+    "Lig",
+    sort(c(
+    grep("_soil", colnames(df_fit |> select(-pH_soil)), value = TRUE),
+    grep("_root", colnames(df_fit |> select(-pH_root)), value = TRUE))
+  ))
+
+df_corr <-
+  df_fit |>
+  select(all_of(c(outcome, "Clay", "Sand"))) |> 
+  select(!contains("_diff"))
+
+
+a <- xicor(df_corr)
+corrplot::corrplot(a)
+corrplot::corrplot(a, method = 'circle', type = 'lower',
+         addCoef.col ='black', number.cex = 0.3, order = 'original', diag=FALSE,
+         pch.cex = 0, tl.col = "black", tl.cex = 0.7)
+
+# Spatially adjusted
+# df_corr <-
+#   df_fit |>
+#   select(pH, Sand, Clay, pCa:Znppm)
+# # png(
+# #   height = 8,
+# #   width = 8,
+# #   res = 300,
+# #   units = "in",
+# #   file = file.path(fig_path, "corr-adj.png"),
+# #   type = "cairo"
+# # )
+# 
+# a <- cor(df_corr, use = "na.or.complete")
+# testRes = cor.mtest(df_corr, conf.level = 0.95)
+# corrplot::corrplot(a, p.mat = testRes$p, method = 'circle', type = 'lower',
+#          addCoef.col ='black', number.cex = 0.7, order = 'original', diag=FALSE,
+#          pch.cex = 0, insig = "pch", tl.col = "black", tl.cex = 0.7)
+# dev.off()
+
+
+# Raw data 
+
+
+#rename(outcome |> setNames(outcome_labels))
+
+png(
+  height = 6.5,
+  width = 6.5,
+  res = 300,
+  units = "in",
+  file = "04-outputs/02-figures/03-manuscript/fig-s7.jpg",
+  type = "cairo"
+)
+a <- cor(df_corr, use = "na.or.complete", method="spearman")
+testRes = cor.mtest(df_corr, conf.level = 0.95)
+corrplot::corrplot(a, p.mat = testRes$p, method = 'circle', type = 'lower',
+         addCoef.col ='black', number.cex = 0.2, order = 'original', diag=FALSE,
+         pch.cex = 0, insig = "pch", tl.col = "black", tl.cex = 0.7)
+dev.off()
+```
+
+##
