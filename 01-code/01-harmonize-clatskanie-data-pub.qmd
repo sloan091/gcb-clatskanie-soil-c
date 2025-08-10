@@ -17,7 +17,7 @@ editor: visual
 editor_options: 
   chunk_output_type: console
 execute: 
-  cache: false
+  cache: true
   warning: false
   message: false
 #bibliography: ../references.bib
