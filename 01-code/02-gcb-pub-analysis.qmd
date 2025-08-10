@@ -1,5 +1,5 @@
 ---
-title: "Supplemental Information for Clatskanie Manuscript"
+title: "Analysis for *Which plant traits increase soil carbon sequestration? Empirical evidence from a long-term poplar genetic diversity trial*"
 author: "Brandon Sloan"
 date: "`r Sys.time()`"
 date-format: "DD MMMM, YYYY"
@@ -30,20 +30,20 @@ bibliography: references.bib
 # The following clears the environment, adds libraries, and closes any stray parallel workers
 gc(reset = TRUE)
 rm(list = ls())
-source("./01-code/01-notebooks/01-data-analysis/fit-helper-fxns.R")
+source("./01-code/fit-helper-fxns.R")
 unregister_dopar()
-load_libs("ggcorrplot","corrplot", "ggpubr", "ggstatsplot", "ggfortify", "lemon", "fields","ggpmisc", "easystats", "multilevelmod", "broom.mixed")
+load_libs("ggcorrplot","corrplot", "ggpubr", "ggstatsplot", "ggfortify", "lemon", "fields","ggpmisc", "easystats", "multilevelmod", "broom.mixed","egg","tagger")
 
 # Default figure parameters
-fig_path <- "04-outputs/02-figures/01-agu/"
+fig_path <- "03-figs"
 fs <- 11
 ```
 
 # Clatskanie Soil and Plant Trait Data
 
-This notebook provides the analysis and figures used in the manuscript: *Which plant traits drive soil carbon sequestration? Empirical evidence from a long‑term Populus genetic diversity trial*. We explore fractionated soil core data taken at 69 trees covering 24 genotypes at the Clatskanie Common Garden site. Below, I will briefly describe the data followed by analyses corresponding to the differing sections of the manuscript.
+This notebook provides the analysis and figures used in the manuscript: *Which plant traits increase soil carbon sequestration? Empirical evidence from a long-term poplar genetic diversity trial*. We explore fractionated soil core data taken at 69 trees covering 24 genotypes at the Clatskanie Common Garden site. Below, I will briefly describe the data followed by analyses corresponding to the differing sections of the manuscript.
 
-I have harmonized multiple datasets taken from the Clatskanie common garden site since 2009. Primarily, this analysis relies on soil and root chemistry data taken as part of Melanie Mayes' SEED project in summer of 2022, while the root exudate and architecture data were taken as part of John Field's LDRD project in fall of 2022. The aboveground biomass data was provided by Mirko Pavicic-Venegas from the overall CBI database. Full details on these harmonized data sets are given in *01-harmonize-clatskanie-data.html*.
+I have harmonized multiple datasets taken from the Clatskanie common garden site since 2009. Primarily, this analysis relies on soil carbon and root chemistry data taken as part of Melanie Mayes' SEED project in summer of 2022, aboveground biomass data was provided by Mirko Pavicic-Venegas from the Center for Bioenergy Innovation (CBI) database, and follow-up soil and root chemistry data taken as part of Oak Ridge National Laboratory research conducted by John Field in 2023-2024. Full details on these harmonized data sets are given in *01-harmonize-clatskanie-data-pub.html* in this repository.
 
 ```{r}
 #| include: true
@@ -60,7 +60,7 @@ df_fit <-
 
 # Clatskanie latitude and longitude data from Stan Martins
 df_ll <-
-  read_csv(file.path(d_path, "01-raw/03-seed/clatskanie-lat-lon.csv")) |>
+  read_csv(file.path(d_path, "01-raw/03-cbi/clatskanie-lat-lon.csv")) |>
   mutate(
     genotype = as.factor(CBI_genotype),
     block = as.factor(CBI_block),
@@ -141,7 +141,6 @@ g1 <- df_fit |>
   theme(legend.position="bottom", legend.justification = "center")
 
 
-fig_path <- "./04-outputs/02-figures/03-gcb"
 ggsave2(file.path(fig_path, "fig-s3-unit-comp.jpg"),
         width = 6.5,
         height = 4)
@@ -275,7 +274,6 @@ g1 <- df_fit |>
   theme(legend.position = c(0.1,0.9))
 
 g1
-fig_path <- "./04-outputs/02-figures/03-gcb"
 ggsave2(file.path(fig_path, "fig-3-soc-frac.jpg"),
         width = 5.5,
         height = 4)
@@ -594,7 +592,6 @@ H2_results |>
   theme(legend.position = c(0.6, 0.2)) +
   guides(fill = guide_legend(title = "Compartment"))
 
-fig_path <- "./04-outputs/02-figures/03-gcb"
 ggsave2(file.path(fig_path, "fig-4-h2.jpg"),
         width = 5, height = 6)
 ```
@@ -633,98 +630,8 @@ H2_results |>
   theme(legend.position = c(0.6, 0.2)) +
   guides(fill = guide_legend(title = "Compartment"))
 
-fig_path <- "./04-outputs/02-figures/03-gcb"
 ggsave2(file.path(fig_path, "fig-h2-comment-response.jpg"),
         width = 5, height = 6)
-```
-
-```{r}
-#| label: fig-h2-asm-c
-#| eval: false
-#| fig-cap: "Broad sense heritability results for the raw data set."
-#| fig-width: 4
-#| fig-height: 5
-#| dependson: calc-H2
-
-H2_results |>
-  filter(
-    data %in% "raw",
-    model %in% "full",
-    !grepl("_diff|30", phenotype),
-    grepl("MAOM|POM|Tot|BD", phenotype)
-  ) |>
-  left_join(var_key, by = "phenotype") |>
-  ggplot(aes(y = fct_reorder(label, H2),
-             x = H2)) +
-  geom_col(
-    fill = "black",
-    position = "dodge",
-    color = "black",
-    linewidth = 0.2
-  ) +
-  geom_vline(xintercept = 0.1,
-             color = "red",
-             linetype = "dashed") +
-  coord_cartesian(xlim = c(0, 1)) +
-  xlab(expression(Broad ~ Sense ~ Heritability ~ H ^ 2)) +
-  ylab("Phenotype") +
-  theme_cowplot(16) +
-  theme(legend.position = c(0.6, 0.2)) +
-  guides(fill = guide_legend(title = "C Pool"))
-
-fig_path_asm <- "./04-outputs/02-figures/04-asm-2024"
-ggsave2(file.path(fig_path_asm, "H2-C-only.jpg"),
-        width = 6,
-        height = 6)
-```
-
-```{r}
-#| label: fig-h2-asm-eff
-#| eval: false
-#| fig-cap: "Broad sense heritability results for the raw data set."
-#| fig-width: 4
-#| fig-height: 5
-#| dependson: calc-H2
-
-H2_results |>
-  filter(
-    data %in% "raw",
-    model %in% "full",
-    !grepl("_diff|30", phenotype),
-    phenotype %in% c("agb",
-    "height",
-    "root_CN",
-    "Lig",
-    "Al_ppm_root",
-    "B_ppm_root",
-    "Na_ppm_root",
-    "pMg_root",
-    "pH_soil")
-  ) |>
-  left_join(var_key, by = "phenotype") |>
-  ggplot(aes(y = fct_reorder(label, H2),
-             x = H2, fill = pool)) +
-  geom_col(
-    #fill = "black",
-    position = "dodge",
-    color = "black",
-    linewidth = 0.2
-  ) +
-  geom_vline(xintercept = 0.1,
-             color = "red",
-             linetype = "dashed") +
-  coord_cartesian(xlim = c(0, 1)) +
-  scale_x_continuous(breaks = c(0,0.5,1)) +
-  xlab(expression(Broad ~ Sense ~ Heritability ~ H ^ 2)) +
-  ylab(NULL) +
-  theme_cowplot(16) +
-  theme(legend.position = "none") +
-  guides(fill = guide_legend(title = "C Pool"))
-
-fig_path_asm <- "./04-outputs/02-figures/04-asm-2024"
-ggsave2(file.path(fig_path_asm, "H2-eff.jpg"),
-        width = 5,
-        height = 6)
 ```
 
 ```{r}
@@ -755,7 +662,7 @@ H2_results |>
 ```
 
 ```{r}
-#| label: fig-s4
+#| label: fig-s5
 #| fig-cap: "Linear mixed model performance using raw and spatially-adjusted datasets and differing model formulations. We look at the a) heritability, b) variance explained by the model, c) variance remaining to be explained by genotype, and d) the p-value from a normality test of model residuals."
 #| fig-width: 8.5
 #| fig-height: 7
@@ -797,8 +704,7 @@ g1 <- H2_results |>
 g1 + tag_facets(position="tr")
 #rm(g1)
 
-fig_path <- "./04-outputs/02-figures/03-gcb"
-ggsave2(file.path(fig_path, "fig-s4.jpg"),
+ggsave2(file.path(fig_path, "fig-s5.jpg"),
         width = 7, height = 7.5)
 ```
 
@@ -1032,7 +938,6 @@ reg_curves |>
   theme_cowplot(fs) +
   theme(legend.position = "bottom", legend.justification = "center")
 
-fig_path <- "./04-outputs/02-figures/03-gcb"
 ggsave2(file.path(fig_path, "fig-s8.jpg"),
         width = 6.5, height = 6.5)
 
@@ -1316,7 +1221,6 @@ cv_fits |>
         legend.justification = "center") +
   guides(fill = "none")
 
-fig_path <- "./04-outputs/02-figures/03-gcb"
 ggsave2(file.path(fig_path, "fig-s10.jpg"),
         width = 6.5, height = 6.5)
 ```
@@ -1367,7 +1271,6 @@ cv_fits |>
         legend.justification = "center") +
   guides(fill = "none")
 
-fig_path <- "./04-outputs/02-figures/03-gcb"
 ggsave2(file.path(fig_path, "fig-s11.jpg"),
         width = 6.5, height = 6.5)
 ```
@@ -1406,7 +1309,6 @@ cv_fits |>
   theme(legend.position = "bottom",
         legend.justification = "center") 
 
-fig_path <- "./04-outputs/02-figures/03-manuscript"
 ggsave2(file.path(fig_path, "fig-s9.jpg"),
         width = 6.5, height = 4)
 ```
@@ -1463,62 +1365,8 @@ cv_fits |>
         legend.justification = "center") + 
   guides(fill = guide_legend(title = "Compartment")) 
 
-fig_path <- "./04-outputs/02-figures/03-gcb"
 ggsave2(file.path(fig_path, "fig-5-eff-dist.jpg"),
         width = 6.5, height = 7.5, dpi = 600)
-```
-
-```{r}
-#| eval: false
-#| label: fig-5-asm
-#| fig-cap: |
-#|  Site and phenotypic effects on soil C fractions for all predictors
-#|  and regularizations using the raw data.
-#| fig-width: 6
-#| fig-height: 7
-#| dependson: rep-cv-fits
-
-cv_fits |>
-  select(-metrics) |>
-  unnest(effects) |>
-  unnest(.extracts) |> 
-  filter(term %in% pred_plt,
-         outcome %in% c("MAOMC"),
-         data_id %in% "raw",
-         spec_id %in% "lasso",
-         pred_id  %in% c("root")) |>
-  mutate(outcome  = fct_recode(
-    outcome,
-    MAOM = "MAOMC",
-    POM = "POMC",
-    Total = "TotC"
-  )) |> 
-  left_join(var_key, by = "term") |> 
-  mutate(label = fct(label, levels = rev(var_key$label))) |> 
-  ggplot(aes(
-    y = label,
-    x = estimate,
-    fill = pool,
-    linetype = pred_id,
-    alpha = pred_id
-    #color = pool
-  )) +
-  ggridges::geom_density_ridges(scale = 2, rel_min_height = 0,linewidth = 0.01) +
-  geom_vline(xintercept = 0, linetype = "solid", linewidth = 0.1) +
-  scale_linetype_manual(name = "Predictors",values = c("all" = "dashed", "root" = "solid")) +
-  scale_alpha_manual(name = "Predictors", values = c("all" = 0.3, "root" = 1)) +
-  #geom_col(position = "dodge", color = "black") +
-  xlab("MAOM C Effect [mg C/g soil/SD]") +
-  ylab(NULL) +
-  #facet_wrap(~outcome, scales = "free_x") +
-  theme_cowplot(16) +
-  theme(legend.position = "none",
-        legend.justification = "center") + 
-  guides(fill = guide_legend(title = "Pool"))
-
-
-ggsave2(file.path(fig_path_asm, "fig-eff.jpg"),
-        width = 6.5, height = 6.5)
 ```
 
 For completeness, we show the Total and MAOM effects for both concentration and stock in @fig-5-both and @fig-5-st. Total C closely mirrors MAOM results given soil C at Clatskanie is mostly MAOM (@fig-4-pub).
@@ -1538,7 +1386,7 @@ cv_fits |>
   select(-metrics) |>
   unnest(effects) |>
   unnest(.extracts) |> 
-  filter(term %in% predictors_plt,
+  filter(term %in% pred_plt,
          outcome %in% c("TotC", "MAOMC"),
          data_id %in% "raw",
          pred_id  %in% "all") |>
@@ -1567,7 +1415,6 @@ cv_fits |>
   theme(legend.position = "bottom",
         legend.justification = "center")
 
-fig_path <- "./04-outputs/02-figures/03-manuscript"
 ggsave2(file.path(fig_path, "fig-6-dist.jpg"),
         width = 6, height = 7)
 ```
@@ -1744,7 +1591,6 @@ df_gt_plt_mod |>
     legend.position = "none"
   ) 
 
-fig_path <- "./04-outputs/02-figures/03-gcb"
 ggsave2(file.path(fig_path, "fig-6-gt.pdf"),
         width = 4, height = 3)
 
@@ -1778,7 +1624,6 @@ df_gt_plt_mod |>
   ) +
   ggstats::geom_stripped_rows(color=NA)
 
-fig_path <- "./04-outputs/02-figures/03-gcb"
 ggsave2(file.path(fig_path, "fig-6-gt-all.jpg"),
         width = 6, height = 6, dpi = 600)
 ```
@@ -1793,12 +1638,6 @@ df_gt_plt |>
   arrange(rnk) |> 
   gt()
 ```
-
--   Double-check 0-30 cm stock calcs with John and figure out why the heritability is so poor. I would hypothesize that the compressed genotype variability is more indicative of poor mixed effect model fit and noisy data than the actual genotype influence.
-
--   Extract the uncertainty in random effect standard deviation and explore normality of the genotype averages.
-
--   Create a synthetic data analysis where we have a spatial field of initial C that covaries with texture and we superimpose all positive genotype effects contaminated with noise. Can the spatial confounding and current models actually detect the average change in soil C and genotype effects at n = 3
 
 ```{r}
 #| eval: true
@@ -1929,18 +1768,6 @@ There are numerous soil, root, and AGB variables at our disposal from the Clatsk
 
 library("XICOR")
 library("psychTools")
-data(peas)
-# Visualize       the peas data
-
-ggplot(peas,aes(parent,child)) +
-geom_count() + scale_radius(range=c(0,5)) +
-       xlim(c(13.5,24))+ylim(c(13.5,24))+       coord_fixed() +
-       theme(legend.position="bottom")
-# Compute one of the coefficients
-xicor(peas$parent,peas$child,pvalue=TRUE)
-xicor(peas$child,peas$parent)
-# Compute all the coefficients
-xicor(peas)
 
 
 outcome <-
@@ -2010,7 +1837,7 @@ png(
   width = 6.5,
   res = 300,
   units = "in",
-  file = "04-outputs/02-figures/03-manuscript/fig-s7.jpg",
+  file = "03-figs/fig-s8.jpg",
   type = "cairo"
 )
 a <- cor(df_corr, use = "na.or.complete", method="spearman")
