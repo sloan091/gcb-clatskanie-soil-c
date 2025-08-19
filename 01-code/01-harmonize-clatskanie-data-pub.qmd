@@ -13,6 +13,7 @@ format:
   embed-resources: true
   self-contained-math: true
   tbl-cap-location: bottom
+  html-table-processing: none
 editor: visual
 editor_options: 
   chunk_output_type: console
@@ -42,7 +43,7 @@ d_path <- "02-data/01-raw/"
 
 # Introduction
 
-We harmonized several different data sets collected at the Clatskanie Common Garden Site over the past few years for this *Global Change Biology* manuscript. We will briefly describe soil, root and aboveground biomass data below and discuss the pre-processing that occurred to arrive at the final data set used for our heritability and regression analysis in the manuscript.
+We harmonized several different data sets collected at the Clatskanie Common Garden Site over the past few years for this *Global Change Biology* manuscript. We will briefly describe soil, root and aboveground biomass data below and discuss the pre-processing that occurred to arrive at the final data set used for our heritability and regression analysis in the manuscript. The final data set is located in this repo at */02-data/02-processed/clatskanie-c-fit-data.csv.* The manuscript analysis using this data can be found in this folder in the *02-gcb-pub-analysis.qmd* notebook.
 
 # SEED Soil Core Data {#sec-soil-core-data}
 
@@ -107,9 +108,9 @@ display_table(df_core)
 
 | Variable                             | Description                                                               | Units                     |
 |--------------------|---------------------------------|-------------------|
-| tree                                 | Unique ID for all poplar trees across these data sets (max of 66 trees)   |                           |
-| genotype                             | ID for genotypes contained across these data sets (max of 23 genotypes)   |                           |
-| block                                | ID for replicate blocks (max of 3 replicates)                             |                           |
+| tree                                 | Unique ID for all poplar trees across these data sets (69 trees)          |                           |
+| genotype                             | ID for genotypes contained across these data sets (24 genotypes)          |                           |
+| block                                | ID for replicate blocks (3 replicates)                                    |                           |
 | Depth                                | Depth that soil core was taken to at each tree (max of 4 depths)          | cm                        |
 | Traits                               | The aboveground phenotypic traits used to select the soil cores           |                           |
 | BD                                   | Soil bulk density                                                         | g/cm$^3$                  |
@@ -519,11 +520,11 @@ df_root_ch <-   read_xlsx(
 display_table(df_root_ch)
 ```
 
-| Variable                                                                        | Description                                          | Units             |
+| Variable                                                                        | Description                             | Units             |
 |--------------------------------|----------------------|------------------|
-| pCa, pK, pMg, pP, pC, pN, pS                                                    | Percent of nutrients in root materials of soil cores | \%                |
-| Lig                                                                             | Root Lignin                                          | \%                |
-| Alppm, Bppm, Cdppm, Crppm, Cuppm, Mnppm, Mo ppm, Na ppm, Ni ppm, Pb ppm, Zn ppm | Trace minerals in roots?                             | Parts per million |
+| pCa, pK, pMg, pP, pC, pN, pS                                                    | Root nutrient percentages               | \%                |
+| Lig                                                                             | Root Lignin                             | \%                |
+| Alppm, Bppm, Cdppm, Crppm, Cuppm, Mnppm, Mo ppm, Na ppm, Ni ppm, Pb ppm, Zn ppm | Root metals and nutrient concentrations | Parts per million |
 
 : @tbl-seed-rc key {#\@tbl-seed-rc-key}
 
@@ -549,25 +550,27 @@ df_agb_rate <- read_csv(file.path(d_path, "03-cbi/cbi-agb.csv"))|>
             cop_id = coppice_number[which.max(year)],
             height = max(height, na.rm = TRUE),
             d20 = max(d20, na.rm = TRUE),
-            d50 = max(d50, na.rm = TRUE)) |> 
+            d50 = max(d50, na.rm = TRUE),
+            dbh = max(dbh, na.rm = TRUE),
+            ) |> 
   group_by(tree) |> 
   summarize(across(c(agb,cop_id), sum),
-            height = max(height, na.rm = TRUE)) |> 
-  ungroup()
+            across(c(height,d20,d50,dbh), \(x) max(x, na.rm = TRUE))) |> 
+  ungroup() |> 
+  relocate(agb,.after=last_col())
 
 display_table(df_agb_rate)
 ```
 
 | Variable       | Description                                                    | Units |
 |-------------------|----------------------------------|-------------------|
-| coppice_year   | Year which coppicing occured                                   |       |
-| coppice_number | A counter of how many coppices                                 |       |
+| cop_id         | Flag to indicate if a given year is before or after coppicing. |       |
 | height         | Tree height                                                    | cm    |
 | d20            | Diameter at 20 cm height                                       | cm    |
 | d50            | Diameter at 50 cm height                                       | cm    |
 | dbh            | Diameter at breast height                                      | cm    |
-| agb            | Estimated aboveground biomass from @truax2014                  | kg    |
-| cop_id         | Flag to indicate if a given year is before or after coppicing. |       |
+| agb            | Estimated aboveground biomass growth rate from @truax2014                  | kg/yr    |
+
 
 : @tbl-cbi-agb key {#\@tbl-2}
 
@@ -726,10 +729,44 @@ root_soil_diff <- df_fit |> select(tree, contains(c("_root", "_soil"))) |>
 df_fit <- df_fit |> left_join(root_soil_diff, by = "tree") |> 
   rename(B_ppm_root = B_ppm,
          pS_root = pS) |> 
-         select(-pC, -pN, Cr_ppm)
+        select(ord:longitude,cop_id, height, dbh, agb, root_CN, Lig, BD,Sand:Silt, SiCl, pH_soil,CEC,base_sat, POMC, MAOMC, TotC, TotC_30, POMC_st, MAOMC_st, TotC_st, TotC_st_30, POM_CN, MAOM_CN, soil_CN, C_chk_rel, C_chk_id, contains(c("Al_ppm", "B_ppm", "Cu_ppm", "Fe_ppm","Mn_ppm","Na_ppm","Ni_ppm","Zn_ppm")), contains(c("pCa","pK","pMg","pP","pS")))
+  
+  
+  
+         # select(-pH_root, -pC, -pN, -Cr_ppm, -Row, -Column, -MCwetCHEM,-MCdryCHEM,-MCwetBD,-MCdryBD)
 
 write_csv(df_fit, "./02-data/02-processed/clatskanie-c-fit-data.csv")
+display_table(df_fit)
 ```
+
+| Variable                                                              | Description                                                                                                                    | Units                          |
+|------------------------|------------------------|------------------------|
+| ord                                                                   | Order of gentoypes used for manuscript plotting                                                                                |                                |
+| tree                                                                  | Unique ID for all poplar trees across these data sets (max of 66 trees)                                                        |                                |
+| genotype                                                              | ID for genotypes contained across these data sets (max of 23 genotypes)                                                        |                                |
+| block                                                                 | ID for replicate blocks (max of 3 replicates)                                                                                  |                                |
+| Depth                                                                 | Soil core depth at each tree. Primarily use 15 cm for manuscript, see raw data for deeper samples (max 60 cm for select trees) | cm                             |
+| latitude                                                              | Latitude of tree                                                                                                               | degrees                        |
+| longitude                                                             | Longitude of tree                                                                                                              | degrees                        |
+| cop_id                                                                | Flag to indicate if a given year is before or after coppicing.                                                                 |                                |
+| height                                                                | Tree height                                                                                                                    | cm                             |
+| dbh                                                                   | Tree diameter at breast height                                                                                                 | cm                             |
+| agb                                                                   | Estimated aboveground biomass growth rate from @truax2014 based on dbh                                                                     | kg/yr                             |
+| root_CN                                                               | Root carbon to nitrogen ratio                                                                                                  |                                |
+| Lig                                                                   | Root lignin percentage                                                                                                         | \%                             |
+| BD                                                                    | Soil bulk density                                                                                                              | g/cm$^3$                       |
+| pH_soil                                                               | Soil acidity taken from LDRD soil chemistry data.                                                                              |                                |
+| CEC                                                                   | Cation exchange capacity                                                                                                       | milliequivalents per 100 grams |
+| base_sat                                                              | Soil base saturation of CEC                                                                                                    | \%                             |
+| Sand, Silt, Clay                                                      | Percent sand, silt or clay                                                                                                     | \%                             |
+| POMC, MAOMC, TotC                                                     | Particulate (POM), mineral-associated (MAOM), and Total soil organic matter C concentrations                                   | mg C/g soil                    |
+| POMC_st, MAOMC_st, TotC_st                                            | Particulate (POM), mineral-associated (MAOM), and Total soil organic matter C stocks                                           | tonnes C/ha                    |
+| POMC_CN, MAOMC_CN, soil_CN                                            | Particulate (POM), mineral-associated (MAOM), and Total soil organic matter carbon to nitrogen ratios                          | \%                             |
+| TotC_30, TotC_st_30                                                   | Total SOC concentration and stock from 0-30 cm rather than 0-15 cm as the other observations.                                  | mg C/g soil or tonnes C/ha     |
+| C_chk_rel, C_chk_id                                                   | Percentage mass balance error in POMC + MAOMC versus TotC, with less than 30% error being acceptable.                          | \%                             |
+| Al_ppm, B_ppm, Cu_ppm, Fe_ppm, Mn_ppm, Mo_ppm, Na_ppm, Ni_ppm, Zn_ppm | Aluminum, Boron, Copper, Iron, Manganese, Molibdinum, Sodium, Nickel, and Zinc concentrations.                                 | parts per million (ppm)        |
+| pCa, pK, pMg, pP, pS                                                  | Calcium, Potassium, Magnesium, Phosphorus, Sulfur percentages                                                                  | \%                             |
+| \_root, \_soil, \_diff                                                | Suffix indicating either the root or soil elemental or nutrient quantity or the difference in root and soil quantity.          |                   |
 
 Additionally, we create supplemental Figures S4 and S6 used in the manuscript below.
 
@@ -782,7 +819,6 @@ ggsave("03-figs/fig-s4.jpg",
         units = "in")
 ```
 
-
 ```{r}
 #| label: fig-s6
 #| eval: true
@@ -791,9 +827,9 @@ ggsave("03-figs/fig-s4.jpg",
 #| fig-cap: Figure S6 in the manuscript of soil versus root chemistry measurements for 69 trees at Clatskanie
 
 df_fit |> 
-  select(-pH_root,-pH_soil, -contains(c("B_ppm","pS_"))) |> 
+  select(-contains(c("B_ppm","pS_"))) |> 
   select(tree, contains(c("_root","_soil"))) |> 
-  pivot_longer(pCa_root:pP_soil,
+  pivot_longer(c(-tree,-pH_soil),
                names_to = c("mineral", "organ"),
                names_pattern = "(.*)_(root|soil)") |> 
   pivot_wider(

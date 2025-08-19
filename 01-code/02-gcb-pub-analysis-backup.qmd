@@ -636,7 +636,7 @@ ggsave2(file.path(fig_path, "fig-h2-comment-response.jpg"),
 
 ```{r}
 #| label: fig-h2-pub-sa
-#| fig-cap: "Broad sense heritability with log-transformed variables."
+#| fig-cap: "Broad sense heritability results for the TPS-REML data set."
 #| fig-width: 4
 #| fig-height: 5
 #| dependson: calc-H2
@@ -743,7 +743,7 @@ pred <-   c("agb",
             "cop_id",
             grep(
               "_root|_soil|_diff",
-              colnames(df_fit |> select(-pH_soil)),
+              colnames(df_fit |> select(-pH_soil,-pH_root,-pH_diff)),
               value = TRUE
             ))
 
@@ -1070,8 +1070,8 @@ pred_plt <-
     "Lig",
     sort(c(
     grep("_soil", colnames(df_fit |> select(-pH_soil)), value = TRUE),
-    grep("_root", colnames(df_fit), value = TRUE),
-    grep("_diff", colnames(df_fit), value = TRUE)))
+    grep("_root", colnames(df_fit |> select(-pH_root)), value = TRUE),
+    grep("_diff", colnames(df_fit |> select(-pH_diff)), value = TRUE)))
   )
 
 
@@ -1791,7 +1791,7 @@ outcome <-
     "Lig",
     sort(c(
     grep("_soil", colnames(df_fit |> select(-pH_soil)), value = TRUE),
-    grep("_root", colnames(df_fit), value = TRUE))
+    grep("_root", colnames(df_fit |> select(-pH_root)), value = TRUE))
   ))
 
 df_corr <-
