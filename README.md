@@ -1,8 +1,13 @@
 # Code Repository for *Which plant traits increase soil carbon sequestration? Empirical evidence from a long-term poplar genetic diversity trial*
 This repository contains all data and code used by the following publication:
+
 Field, J. L., Sloan, B. P., Craig, M. E., Calloway, P., Ottinger, S. L., Mead, T., Abramoff, R. Z., Venegas, M. P., Chhetri, H. B., Haiby, K., Kalluri, U. C., Muchero, W., Schadt, C. W., & Mayes, M. A. (2025). Which plant traits increase soil carbon sequestration? Empirical evidence from a long-term poplar genetic diversity trial (p. 2025.02.17.638464). bioRxiv. https://doi.org/10.1101/2025.02.17.638464
 
-Our analysis combined several soil and root data sets collected by Oak Ridge National Laboratory (ORNL) researchers/collaborators from the Clatskanie Poplar Common Garden in Clatskanie, OR by from 2009-2024. The data harmonization codes are located in the */01-codes/01-harmonize-clatskanie-data-pub.qmd* file while the analysis and figure generation for the manuscript are located in the */01-codes/01-gcb-pub-analysis.qmd* file. These *Quarto* notebooks have corresponding rendered PDFs in the same location. *R* version 4.4.1 was used for all analysis. 
+Our analysis combined several soil and root data sets collected by Oak Ridge National Laboratory (ORNL) researchers/collaborators from the Clatskanie Poplar Common Garden in Clatskanie, OR by from 2009-2024. The raw data data files are located */02-data/01-raw/* which we harmonized using the codes in */01-codes/01-harmonize-clatskanie-data-pub.qmd*. The final processed data set used in the paper is found at */02-data/02-processed/clatskanie-c-fit-data.csv* and its columns are described in the table below. Please use the following data citation:
+
+Sloan, B. P., Field, J. L., Craig, M. E., Calloway, P., Ottinger, S. L., Mead, T., Abramoff, R. Z., Venegas, M. P., Chhetri, H. B., Haiby, K., Kalluri, U. C., Muchero, W., Schadt, C. W., & Mayes, M. A. (2025). Which plant traits increase soil carbon sequestration? Empirical evidence from a long-term poplar genetic diversity trial [Data set and analysis code]. Zenodo. https://doi.org/10.5281/zenodo.16790934
+
+Finally, the analysis and figure generation codes for the manuscript are located in the */01-codes/01-gcb-pub-analysis.qmd* file, while the figure files are located in */03-figs/*. These *Quarto* notebooks have corresponding rendered markdown files (*.md*) stored in the same location. *R* version 4.4.1 was used for all analysis. 
 
 | Variable                                                              | Description                                                                                                                    | Units                          |
 |------------------------|------------------------|------------------------|
