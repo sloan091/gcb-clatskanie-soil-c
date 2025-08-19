@@ -103,30 +103,30 @@ display_table <- function(df){
 }
 
 
-display_table(df_core)
+knitr::kable(head(df_core), digits = 2)
 ```
 
-| Variable                             | Description                                                               | Units                     |
+| Variable | Description | Units |
 |--------------------|---------------------------------|-------------------|
-| tree                                 | Unique ID for all poplar trees across these data sets (69 trees)          |                           |
-| genotype                             | ID for genotypes contained across these data sets (24 genotypes)          |                           |
-| block                                | ID for replicate blocks (3 replicates)                                    |                           |
-| Depth                                | Depth that soil core was taken to at each tree (max of 4 depths)          | cm                        |
-| Traits                               | The aboveground phenotypic traits used to select the soil cores           |                           |
-| BD                                   | Soil bulk density                                                         | g/cm$^3$                  |
+| tree | Unique ID for all poplar trees across these data sets (69 trees) |  |
+| genotype | ID for genotypes contained across these data sets (24 genotypes) |  |
+| block | ID for replicate blocks (3 replicates) |  |
+| Depth | Depth that soil core was taken to at each tree (max of 4 depths) | cm |
+| Traits | The aboveground phenotypic traits used to select the soil cores |  |
+| BD | Soil bulk density | g/cm$^3$ |
 | MCwetBD, MCdryBD, MCwetCHEM, MCwetBD | Wet and dry soil moisture content from bulk density and chemistry samples | cm$^3$ water/ cm$^3$ soil |
-| pH                                   | Soil acidity                                                              |                           |
-| Sand                                 | Percent Sand                                                              | \%                        |
-| Clay                                 | Percent Clay                                                              | \%                        |
-| Silt                                 | Percent Silt                                                              | \%                        |
-| POMpN, POMpC                         | Particulate organic matter percent Carbon and Nitrogen                    | \%                        |
-| POMN, POMC                           | Particulate organic matter percent Carbon and Nitrogen                    | mg C or N/g soil          |
-| MAOMpN, MAOMpC                       | Mineral associated organic matter percent C and N                         | \%                        |
-| MAOMN, MAOMC                         | Mineral associated organic matter C and N                                 | mg C or N/g soil          |
-| TotpN, TotpC                         | Total percent N or C                                                      | \%                        |
-| OrgAcidMass                          | Fresh soil mass for organic acid analysis                                 | g                         |
-| Lactate_conc, Acetate_conc, ...      | Organic acid concentrations                                               | $\mu$moles                |
-| Lactate, Acetate, ...                | Specific organic acid concentrations                                      | $\mu$moles/g soil         |
+| pH | Soil acidity |  |
+| Sand | Percent Sand | \% |
+| Clay | Percent Clay | \% |
+| Silt | Percent Silt | \% |
+| POMpN, POMpC | Particulate organic matter percent Carbon and Nitrogen | \% |
+| POMN, POMC | Particulate organic matter percent Carbon and Nitrogen | mg C or N/g soil |
+| MAOMpN, MAOMpC | Mineral associated organic matter percent C and N | \% |
+| MAOMN, MAOMC | Mineral associated organic matter C and N | mg C or N/g soil |
+| TotpN, TotpC | Total percent N or C | \% |
+| OrgAcidMass | Fresh soil mass for organic acid analysis | g |
+| Lactate_conc, Acetate_conc, ... | Organic acid concentrations | $\mu$moles |
+| Lactate, Acetate, ... | Specific organic acid concentrations | $\mu$moles/g soil |
 
 : @tbl-seed-core key {#\@tbl-seed-core-key}
 
@@ -520,10 +520,10 @@ df_root_ch <-   read_xlsx(
 display_table(df_root_ch)
 ```
 
-| Variable                                                                        | Description                             | Units             |
+| Variable | Description | Units |
 |--------------------------------|----------------------|------------------|
-| pCa, pK, pMg, pP, pC, pN, pS                                                    | Root nutrient percentages               | \%                |
-| Lig                                                                             | Root Lignin                             | \%                |
+| pCa, pK, pMg, pP, pC, pN, pS | Root nutrient percentages | \% |
+| Lig | Root Lignin | \% |
 | Alppm, Bppm, Cdppm, Crppm, Cuppm, Mnppm, Mo ppm, Na ppm, Ni ppm, Pb ppm, Zn ppm | Root metals and nutrient concentrations | Parts per million |
 
 : @tbl-seed-rc key {#\@tbl-seed-rc-key}
@@ -562,15 +562,14 @@ df_agb_rate <- read_csv(file.path(d_path, "03-cbi/cbi-agb.csv"))|>
 display_table(df_agb_rate)
 ```
 
-| Variable       | Description                                                    | Units |
+| Variable | Description | Units |
 |-------------------|----------------------------------|-------------------|
-| cop_id         | Flag to indicate if a given year is before or after coppicing. |       |
-| height         | Tree height                                                    | cm    |
-| d20            | Diameter at 20 cm height                                       | cm    |
-| d50            | Diameter at 50 cm height                                       | cm    |
-| dbh            | Diameter at breast height                                      | cm    |
-| agb            | Estimated aboveground biomass growth rate from @truax2014                  | kg/yr    |
-
+| cop_id | Flag to indicate if a given year is before or after coppicing. |  |
+| height | Tree height | cm |
+| d20 | Diameter at 20 cm height | cm |
+| d50 | Diameter at 50 cm height | cm |
+| dbh | Diameter at breast height | cm |
+| agb | Estimated aboveground biomass growth rate from @truax2014 | kg/yr |
 
 : @tbl-cbi-agb key {#\@tbl-2}
 
@@ -739,34 +738,34 @@ write_csv(df_fit, "./02-data/02-processed/clatskanie-c-fit-data.csv")
 display_table(df_fit)
 ```
 
-| Variable                                                              | Description                                                                                                                    | Units                          |
+| Variable | Description | Units |
 |------------------------|------------------------|------------------------|
-| ord                                                                   | Order of gentoypes used for manuscript plotting                                                                                |                                |
-| tree                                                                  | Unique ID for all poplar trees across these data sets (max of 66 trees)                                                        |                                |
-| genotype                                                              | ID for genotypes contained across these data sets (max of 23 genotypes)                                                        |                                |
-| block                                                                 | ID for replicate blocks (max of 3 replicates)                                                                                  |                                |
-| Depth                                                                 | Soil core depth at each tree. Primarily use 15 cm for manuscript, see raw data for deeper samples (max 60 cm for select trees) | cm                             |
-| latitude                                                              | Latitude of tree                                                                                                               | degrees                        |
-| longitude                                                             | Longitude of tree                                                                                                              | degrees                        |
-| cop_id                                                                | Flag to indicate if a given year is before or after coppicing.                                                                 |                                |
-| height                                                                | Tree height                                                                                                                    | cm                             |
-| dbh                                                                   | Tree diameter at breast height                                                                                                 | cm                             |
-| agb                                                                   | Estimated aboveground biomass growth rate from @truax2014 based on dbh                                                                     | kg/yr                             |
-| root_CN                                                               | Root carbon to nitrogen ratio                                                                                                  |                                |
-| Lig                                                                   | Root lignin percentage                                                                                                         | \%                             |
-| BD                                                                    | Soil bulk density                                                                                                              | g/cm$^3$                       |
-| pH_soil                                                               | Soil acidity taken from LDRD soil chemistry data.                                                                              |                                |
-| CEC                                                                   | Cation exchange capacity                                                                                                       | milliequivalents per 100 grams |
-| base_sat                                                              | Soil base saturation of CEC                                                                                                    | \%                             |
-| Sand, Silt, Clay                                                      | Percent sand, silt or clay                                                                                                     | \%                             |
-| POMC, MAOMC, TotC                                                     | Particulate (POM), mineral-associated (MAOM), and Total soil organic matter C concentrations                                   | mg C/g soil                    |
-| POMC_st, MAOMC_st, TotC_st                                            | Particulate (POM), mineral-associated (MAOM), and Total soil organic matter C stocks                                           | tonnes C/ha                    |
-| POMC_CN, MAOMC_CN, soil_CN                                            | Particulate (POM), mineral-associated (MAOM), and Total soil organic matter carbon to nitrogen ratios                          | \%                             |
-| TotC_30, TotC_st_30                                                   | Total SOC concentration and stock from 0-30 cm rather than 0-15 cm as the other observations.                                  | mg C/g soil or tonnes C/ha     |
-| C_chk_rel, C_chk_id                                                   | Percentage mass balance error in POMC + MAOMC versus TotC, with less than 30% error being acceptable.                          | \%                             |
-| Al_ppm, B_ppm, Cu_ppm, Fe_ppm, Mn_ppm, Mo_ppm, Na_ppm, Ni_ppm, Zn_ppm | Aluminum, Boron, Copper, Iron, Manganese, Molibdinum, Sodium, Nickel, and Zinc concentrations.                                 | parts per million (ppm)        |
-| pCa, pK, pMg, pP, pS                                                  | Calcium, Potassium, Magnesium, Phosphorus, Sulfur percentages                                                                  | \%                             |
-| \_root, \_soil, \_diff                                                | Suffix indicating either the root or soil elemental or nutrient quantity or the difference in root and soil quantity.          |                   |
+| ord | Order of gentoypes used for manuscript plotting |  |
+| tree | Unique ID for all poplar trees across these data sets (max of 66 trees) |  |
+| genotype | ID for genotypes contained across these data sets (max of 23 genotypes) |  |
+| block | ID for replicate blocks (max of 3 replicates) |  |
+| Depth | Soil core depth at each tree. Primarily use 15 cm for manuscript, see raw data for deeper samples (max 60 cm for select trees) | cm |
+| latitude | Latitude of tree | degrees |
+| longitude | Longitude of tree | degrees |
+| cop_id | Flag to indicate if a given year is before or after coppicing. |  |
+| height | Tree height | cm |
+| dbh | Tree diameter at breast height | cm |
+| agb | Estimated aboveground biomass growth rate from @truax2014 based on dbh | kg/yr |
+| root_CN | Root carbon to nitrogen ratio |  |
+| Lig | Root lignin percentage | \% |
+| BD | Soil bulk density | g/cm$^3$ |
+| pH_soil | Soil acidity taken from LDRD soil chemistry data. |  |
+| CEC | Cation exchange capacity | milliequivalents per 100 grams |
+| base_sat | Soil base saturation of CEC | \% |
+| Sand, Silt, Clay | Percent sand, silt or clay | \% |
+| POMC, MAOMC, TotC | Particulate (POM), mineral-associated (MAOM), and Total soil organic matter C concentrations | mg C/g soil |
+| POMC_st, MAOMC_st, TotC_st | Particulate (POM), mineral-associated (MAOM), and Total soil organic matter C stocks | tonnes C/ha |
+| POMC_CN, MAOMC_CN, soil_CN | Particulate (POM), mineral-associated (MAOM), and Total soil organic matter carbon to nitrogen ratios | \% |
+| TotC_30, TotC_st_30 | Total SOC concentration and stock from 0-30 cm rather than 0-15 cm as the other observations. | mg C/g soil or tonnes C/ha |
+| C_chk_rel, C_chk_id | Percentage mass balance error in POMC + MAOMC versus TotC, with less than 30% error being acceptable. | \% |
+| Al_ppm, B_ppm, Cu_ppm, Fe_ppm, Mn_ppm, Mo_ppm, Na_ppm, Ni_ppm, Zn_ppm | Aluminum, Boron, Copper, Iron, Manganese, Molibdinum, Sodium, Nickel, and Zinc concentrations. | parts per million (ppm) |
+| pCa, pK, pMg, pP, pS | Calcium, Potassium, Magnesium, Phosphorus, Sulfur percentages | \% |
+| \_root, \_soil, \_diff | Suffix indicating either the root or soil elemental or nutrient quantity or the difference in root and soil quantity. |  |
 
 Additionally, we create supplemental Figures S4 and S6 used in the manuscript below.
 
