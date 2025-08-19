@@ -73,12 +73,11 @@ df_core <-
 
 display_table <- function(df){
  head(df) |> 
-    gt()|> 
-    fmt_number(columns = where(is.numeric), decimals = 2) 
+    knitr::kable(digits = 2)
 }
 
 
-knitr::kable(head(df_core), digits = 2)
+display_table(df_core)
 ```
 
 </details>
