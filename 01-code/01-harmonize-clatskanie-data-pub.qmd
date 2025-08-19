@@ -101,7 +101,6 @@ display_table <- function(df){
     knitr::kable(digits = 2)
 }
 
-
 display_table(df_core)
 ```
 
