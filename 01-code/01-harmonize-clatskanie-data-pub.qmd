@@ -21,7 +21,7 @@ execute:
   cache: true
   warning: false
   message: false
-#bibliography: ../references.bib
+bibliography: ../references.bib
 ---
 
 ```{r}
@@ -520,9 +520,9 @@ display_table(df_root_ch)
 
 | Variable | Description | Units |
 |--------------------------------|----------------------|------------------|
-| pCa, pK, pMg, pP, pC, pN, pS | Root nutrient percentages | \% |
+| pCa, pK, pMg, pP, pC, pN, pS | Root Calcium, Potassium, Magnesium, Phosphorus, Sulfur percentages | \% |
 | Lig | Root Lignin | \% |
-| Alppm, Bppm, Cdppm, Crppm, Cuppm, Mnppm, Mo ppm, Na ppm, Ni ppm, Pb ppm, Zn ppm | Root metals and nutrient concentrations | Parts per million |
+| Alppm, Bppm, Cdppm, Crppm, Cuppm, Mnppm, Mo ppm, Na ppm, Ni ppm, Pb ppm, Zn ppm | Root Aluminum, Boron, Cadmium, Chromium, Copper, Iron, Manganese, Molibdinum, Sodium, Nickel, Lead, and Zinc concentrations | parts per million (ppm) |
 
 : @tbl-seed-rc key {#\@tbl-seed-rc-key}
 
@@ -576,6 +576,10 @@ display_table(df_agb_rate)
 Soil chemistry data for the 69 SEED soil cores were measured at UGA in May 2024 in order to check whether the root chemistry influence on soil C was an active or passive effect.
 
 ```{r}
+#| include: true
+#| label: tbl-ldrd-sc
+#| tbl-cap: LDRD soil chemistry data from 2022 SEED soil cores measured in 2024.
+#| tbl-column: body
 
 df_soil_chem <-
   read_xlsx(file.path(d_path, "02-ldrd/soil-chem-uga-5-25-24.xlsx"),
@@ -602,11 +606,20 @@ df_soil_chem <-
   select(-Lab, -Sample)
 ```
 
-# Create Manuscript Analysis Dataset
+| Variable | Description | Units |
+|--------------------------------|----------------------|------------------|
+| LBC, LBCeq | Lime buffer capacity | ppm CaCO3/pH |
+| pH | Soil pH |  |
+| CEC | Cation exchange capacity | milliequivalents per 100 grams |
+| base_sat | Soil base saturation of CEC | \% |
+| pCa, pK, pMg, pP | Root Calcium, Potassium, Magnesium, Phosphoruspercentages | \% |
+| Al_ppm, Cd_ppm, Cr_ppm, Cu_ppm, Fe_ppm, Mn_ppm, Mo_ppm, Na_ppm, Ni_ppm, Pb_ppm, Zn_ppm | Aluminum, Cadmium, Chromium, Copper, Iron, Manganese, Molibdinum, Sodium, Nickel, Lead, and Zinc concentrations. | Parts per million |
 
-Creating the overall data set for the Clatskanie soil C manuscript is bit messy given we have to update multiple original soil core samples with two differing updates (1/24/24 and 3/24/24) to the SOC fractionation as well as add soil chemistry data taken on 5/24/24.
+: @tbl-ldrd-sc key {#\@tbl-ldrd-sc-key}
 
-Furthermore, I have excluded Cadmium, Chromium, Molibdinum, and Lead from the root and/or soil chemistry data since many of these were either not measured for both root and soil or they had only trace amounts for many of the samples.
+# Create GCB Manuscript Analysis Dataset
+
+We stitched together the complete tree, soil and root data set covering 69 trees (24 genotypes), focusing on primarily the 0-15 cm depth for the manuscript analysis. The coding was tricky given we had to update multiple original soil core samples with two differing updates (1/24/24 and 3/24/24) to the SOC fractionation as well as add soil chemistry data taken on 5/24/24. We have excluded Cadmium, Chromium, Molibdinum, and Lead from the root and/or soil chemistry data since many of these were either not measured for both root and soil or they had only trace amounts for many of the samples. The final data set is stored at *./02-data/02-processed/clatskanie-c-fit-data.csv* and described below in @tbl-gcb-data - @tbl-gcb-data-key.
 
 ```{r}
 #| eval: true
@@ -727,12 +740,16 @@ df_fit <- df_fit |> left_join(root_soil_diff, by = "tree") |>
   rename(B_ppm_root = B_ppm,
          pS_root = pS) |> 
         select(ord:longitude,cop_id, height, dbh, agb, root_CN, Lig, BD,Sand:Silt, SiCl, pH_soil,CEC,base_sat, POMC, MAOMC, TotC, TotC_30, POMC_st, MAOMC_st, TotC_st, TotC_st_30, POM_CN, MAOM_CN, soil_CN, C_chk_rel, C_chk_id, contains(c("Al_ppm", "B_ppm", "Cu_ppm", "Fe_ppm","Mn_ppm","Na_ppm","Ni_ppm","Zn_ppm")), contains(c("pCa","pK","pMg","pP","pS")))
-  
-  
-  
-         # select(-pH_root, -pC, -pN, -Cr_ppm, -Row, -Column, -MCwetCHEM,-MCdryCHEM,-MCwetBD,-MCdryBD)
 
-write_csv(df_fit, "./02-data/02-processed/clatskanie-c-fit-data.csv")
+write_csv(df_fit, "./02-data/02-processed/clatskanie-c-fit-data.csv") 
+```
+
+```{r}
+#| include: true
+#| label: tbl-gcb-data
+#| tbl-cap: The final processed data set used for the analysis in the GCB paper.
+#| tbl-column: body
+
 display_table(df_fit)
 ```
 
@@ -765,7 +782,11 @@ display_table(df_fit)
 | pCa, pK, pMg, pP, pS | Calcium, Potassium, Magnesium, Phosphorus, Sulfur percentages | \% |
 | \_root, \_soil, \_diff | Suffix indicating either the root or soil elemental or nutrient quantity or the difference in root and soil quantity. |  |
 
-Additionally, we create supplemental Figures S4 and S6 used in the manuscript below.
+: @tbl-gcb-data key {#\@tbl-gcb-data-key}
+
+# Supplemental Figures
+
+Additionally, we created supplemental Figures S4 and S6 used in the manuscript below. These files were created here as they relied on soil observations that were not included in the final output data.
 
 ```{r}
 #| label: fig-s4
@@ -846,3 +867,5 @@ ggsave2(file.path(fig_path, "fig-s6-soilvroot.jpg"),
         width = 6, height = 6, dpi = 600)
 
 ```
+
+# References

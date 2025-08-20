@@ -575,9 +575,9 @@ Table 3: SEED soil core data collected in 2022.
 
 | Variable | Description | Units |
 |----|----|----|
-| pCa, pK, pMg, pP, pC, pN, pS | Root nutrient percentages | % |
+| pCa, pK, pMg, pP, pC, pN, pS | Root Calcium, Potassium, Magnesium, Phosphorus, Sulfur percentages | % |
 | Lig | Root Lignin | % |
-| Alppm, Bppm, Cdppm, Crppm, Cuppm, Mnppm, Mo ppm, Na ppm, Ni ppm, Pb ppm, Zn ppm | Root metals and nutrient concentrations | Parts per million |
+| Alppm, Bppm, Cdppm, Crppm, Cuppm, Mnppm, Mo ppm, Na ppm, Ni ppm, Pb ppm, Zn ppm | Root Aluminum, Boron, Cadmium, Chromium, Copper, Iron, Manganese, Molibdinum, Sodium, Nickel, Lead, and Zinc concentrations | parts per million (ppm) |
 
 Table 4: <a href="#tbl-seed-rc" class="quarto-xref">Table 3</a> key
 
@@ -589,7 +589,7 @@ A time series of abovegound biomass measurements from 2009-2019 was
 collected from *Poplar Innovations* as part of Center for Bioenergy
 Innovation (CBI) research. The primary measurements are tree diameters
 that were converted to aboveground woody biomass (trunk and branches)
-based on the allometric equations from @truax2014.
+based on the allometric equations from Truax et al. (2014).
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -645,7 +645,7 @@ Table 5: LDRD aboveground biomass data collected from 2009 -2019
 | d20 | Diameter at 20 cm height | cm |
 | d50 | Diameter at 50 cm height | cm |
 | dbh | Diameter at breast height | cm |
-| agb | Estimated aboveground biomass growth rate from @truax2014 | kg/yr |
+| agb | Estimated aboveground biomass growth rate from Truax et al. (2014) | kg/yr |
 
 Table 6: <a href="#tbl-cbi-agb" class="quarto-xref">Table 5</a> key
 
@@ -656,6 +656,8 @@ Table 6: <a href="#tbl-cbi-agb" class="quarto-xref">Table 5</a> key
 Soil chemistry data for the 69 SEED soil cores were measured at UGA in
 May 2024 in order to check whether the root chemistry influence on soil
 C was an active or passive effect.
+
+<div id="tbl-ldrd-sc">
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -688,17 +690,40 @@ df_soil_chem <-
 
 </details>
 
-# Create Manuscript Analysis Dataset
 
-Creating the overall data set for the Clatskanie soil C manuscript is
-bit messy given we have to update multiple original soil core samples
-with two differing updates (1/24/24 and 3/24/24) to the SOC
-fractionation as well as add soil chemistry data taken on 5/24/24.
+Table 7: LDRD soil chemistry data from 2022 SEED soil cores measured in
+2024.
 
-Furthermore, I have excluded Cadmium, Chromium, Molibdinum, and Lead
-from the root and/or soil chemistry data since many of these were either
-not measured for both root and soil or they had only trace amounts for
-many of the samples.
+</div>
+<div id="tbl-ldrd-sc-key">
+
+| Variable | Description | Units |
+|----|----|----|
+| LBC, LBCeq | Lime buffer capacity | ppm CaCO3/pH |
+| pH | Soil pH |  |
+| CEC | Cation exchange capacity | milliequivalents per 100 grams |
+| base_sat | Soil base saturation of CEC | % |
+| pCa, pK, pMg, pP | Root Calcium, Potassium, Magnesium, Phosphoruspercentages | % |
+| Al_ppm, Cd_ppm, Cr_ppm, Cu_ppm, Fe_ppm, Mn_ppm, Mo_ppm, Na_ppm, Ni_ppm, Pb_ppm, Zn_ppm | Aluminum, Cadmium, Chromium, Copper, Iron, Manganese, Molibdinum, Sodium, Nickel, Lead, and Zinc concentrations. | Parts per million |
+
+Table 8: <a href="#tbl-ldrd-sc" class="quarto-xref">Table 7</a> key
+
+</div>
+
+# Create GCB Manuscript Analysis Dataset
+
+We stitched together the complete tree, soil and root data set covering
+69 trees (24 genotypes), focusing on primarily the 0-15 cm depth for the
+manuscript analysis. The coding was tricky given we had to update
+multiple original soil core samples with two differing updates (1/24/24
+and 3/24/24) to the SOC fractionation as well as add soil chemistry data
+taken on 5/24/24. We have excluded Cadmium, Chromium, Molibdinum, and
+Lead from the root and/or soil chemistry data since many of these were
+either not measured for both root and soil or they had only trace
+amounts for many of the samples. The final data set is stored at
+*./02-data/02-processed/clatskanie-c-fit-data.csv* and described below
+in <a href="#tbl-gcb-data" class="quarto-xref">Table 9</a> -
+<a href="#tbl-gcb-data-key" class="quarto-xref">Table 10</a>.
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -819,16 +844,22 @@ df_fit <- df_fit |> left_join(root_soil_diff, by = "tree") |>
   rename(B_ppm_root = B_ppm,
          pS_root = pS) |> 
         select(ord:longitude,cop_id, height, dbh, agb, root_CN, Lig, BD,Sand:Silt, SiCl, pH_soil,CEC,base_sat, POMC, MAOMC, TotC, TotC_30, POMC_st, MAOMC_st, TotC_st, TotC_st_30, POM_CN, MAOM_CN, soil_CN, C_chk_rel, C_chk_id, contains(c("Al_ppm", "B_ppm", "Cu_ppm", "Fe_ppm","Mn_ppm","Na_ppm","Ni_ppm","Zn_ppm")), contains(c("pCa","pK","pMg","pP","pS")))
-  
-  
-  
-         # select(-pH_root, -pC, -pN, -Cr_ppm, -Row, -Column, -MCwetCHEM,-MCdryCHEM,-MCwetBD,-MCdryBD)
 
-write_csv(df_fit, "./02-data/02-processed/clatskanie-c-fit-data.csv")
+write_csv(df_fit, "./02-data/02-processed/clatskanie-c-fit-data.csv") 
+```
+
+</details>
+<details class="code-fold">
+<summary>Code</summary>
+
+``` r
 display_table(df_fit)
 ```
 
 </details>
+<div id="tbl-gcb-data">
+
+<div class="cell-output-display">
 
 | ord | tree | genotype | block | Depth | latitude | longitude | cop_id | height | dbh | agb | root_CN | Lig | BD | Sand | Clay | Silt | SiCl | pH_soil | CEC | base_sat | POMC | MAOMC | TotC | TotC_30 | POMC_st | MAOMC_st | TotC_st | TotC_st_30 | POM_CN | MAOM_CN | soil_CN | C_chk_rel | C_chk_id | Al_ppm_root | Al_ppm_soil | Al_ppm_diff | B_ppm_root | Cu_ppm_root | Cu_ppm_soil | Cu_ppm_diff | Fe_ppm_root | Fe_ppm_soil | Fe_ppm_diff | Mn_ppm_root | Mn_ppm_soil | Mn_ppm_diff | Na_ppm_root | Na_ppm_soil | Na_ppm_diff | Ni_ppm_root | Ni_ppm_soil | Ni_ppm_diff | Zn_ppm_root | Zn_ppm_soil | Zn_ppm_diff | pCa_root | pCa_soil | pCa_diff | pK_root | pK_soil | pK_diff | pMg_root | pMg_soil | pMg_diff | pP_root | Cr_ppm | pPOM | pP_soil | pP_diff | pS_root |
 |---:|:---|:---|:---|---:|---:|---:|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -838,6 +869,14 @@ display_table(df_fit)
 | 4 | BESC-119-1 | BESC-119 | 1 | 15 | 46.12 | -123.27 | Coppiced | 720 | 16.8 | 3.34 | 51.94 | 35.71 | 0.82 | 0.00 | 37.90 | 62.87 | 100.77 | 4.78 | 30.19 | 43.10 | 7.07 | 32.04 | 42.43 | 29.88 | 8.66 | 39.26 | 52.00 | 72.04 | 20.79 | 12.09 | 12.78 | -7.83 | Good | 2109.76 | 4.64 | 2105.12 | 11.84 | 24.69 | 4.75 | 19.95 | 1833.12 | 411.20 | 1421.92 | 149.32 | 57.42 | 91.90 | 107.56 | 34.50 | 73.06 | 4.88 | 1.88 | 3.00 | 57.83 | 4.72 | 53.12 | 0.90 | 0.20 | 0.71 | 0.72 | 0.03 | 0.68 | 0.10 | 0.03 | 0.07 | 0.12 | 14.03 | 16.66 | 0.01 | 0.10 | 0.12 |
 | 5 | BESC-13-1 | BESC-13 | 1 | 15 | 46.12 | -123.27 | Non-coppiced | 670 | 12.6 | 1.57 | 40.69 | 27.05 | 0.99 | 1.89 | 34.90 | 63.21 | 98.11 | 5.25 | 25.40 | 67.60 | 2.70 | 21.61 | 24.70 | 24.70 | 4.01 | 32.12 | 36.72 | 69.09 | 11.93 | 11.03 | 9.32 | -1.59 | Good | 1047.54 | 0.41 | 1047.13 | 15.29 | 10.38 | 5.76 | 4.62 | 952.77 | 350.07 | 602.70 | 73.41 | 74.21 | -0.80 | 372.08 | 33.46 | 338.62 | 3.91 | 2.85 | 1.06 | 65.39 | 7.45 | 57.94 | 0.54 | 0.26 | 0.28 | 0.83 | 0.03 | 0.80 | 0.10 | 0.04 | 0.06 | 0.12 | NA | 10.92 | 0.02 | 0.10 | 0.11 |
 | 6 | BESC-13-2 | BESC-13 | 2 | 15 | 46.12 | -123.27 | Non-coppiced | 1150 | 23.0 | 6.70 | 52.09 | 31.56 | 0.84 | 8.27 | 36.83 | 54.90 | 91.73 | 5.27 | 26.33 | 71.23 | 14.70 | 28.90 | 49.10 | 49.10 | 18.55 | 36.50 | 61.99 | 114.76 | 23.83 | 10.84 | 13.18 | -11.20 | Good | 2326.70 | 0.53 | 2326.17 | 14.38 | 17.18 | 6.37 | 10.81 | 2202.72 | 447.65 | 1755.07 | 243.11 | 84.15 | 158.96 | 102.42 | 38.25 | 64.18 | 8.19 | 3.13 | 5.07 | 93.19 | 9.29 | 83.90 | 0.70 | 0.30 | 0.41 | 0.48 | 0.03 | 0.45 | 0.12 | 0.04 | 0.08 | 0.14 | NA | 29.93 | 0.01 | 0.12 | 0.09 |
+
+</div>
+
+Table 9: The final processed data set used for the analysis in the GCB
+paper.
+
+</div>
+<div id="tbl-gcb-data-key">
 
 | Variable | Description | Units |
 |----|----|----|
@@ -851,7 +890,7 @@ display_table(df_fit)
 | cop_id | Flag to indicate if a given year is before or after coppicing. |  |
 | height | Tree height | cm |
 | dbh | Tree diameter at breast height | cm |
-| agb | Estimated aboveground biomass growth rate from @truax2014 based on dbh | kg/yr |
+| agb | Estimated aboveground biomass growth rate from Truax et al. (2014) based on dbh | kg/yr |
 | root_CN | Root carbon to nitrogen ratio |  |
 | Lig | Root lignin percentage | % |
 | BD | Soil bulk density | g/cm$^3$ |
@@ -868,8 +907,15 @@ display_table(df_fit)
 | pCa, pK, pMg, pP, pS | Calcium, Potassium, Magnesium, Phosphorus, Sulfur percentages | % |
 | \_root, \_soil, \_diff | Suffix indicating either the root or soil elemental or nutrient quantity or the difference in root and soil quantity. |  |
 
-Additionally, we create supplemental Figures S4 and S6 used in the
-manuscript below.
+Table 10: <a href="#tbl-gcb-data" class="quarto-xref">Table 9</a> key
+
+</div>
+
+# Supplemental Figures
+
+Additionally, we created supplemental Figures S4 and S6 used in the
+manuscript below. These files were created here as they relied on soil
+observations that were not included in the final output data.
 
 <details class="code-fold">
 <summary>Code</summary>
@@ -963,5 +1009,21 @@ ggsave2(file.path(fig_path, "fig-s6-soilvroot.jpg"),
 
 Figure 5: Figure S6 in the manuscript of soil versus root chemistry
 measurements for 69 trees at Clatskanie
+
+</div>
+
+# References
+
+<div id="refs" class="references csl-bib-body hanging-indent"
+entry-spacing="0">
+
+<div id="ref-truax2014" class="csl-entry">
+
+Truax, Benoit, Daniel Gagnon, Julien Fortier, and France Lambert. 2014.
+“Biomass and Volume Yield in Mature Hybrid Poplar Plantations on
+Temperate Abandoned Farmland.” *Forests* 5 (12): 3107–30.
+<https://doi.org/10.3390/f5123107>.
+
+</div>
 
 </div>
